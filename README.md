@@ -37,3 +37,18 @@ cp -r $SOURCE_REPO_DIR/io/strimzi/kafka-oauth-keycloak-authorizer/$TAG/*.{pom,ja
 ```
 
 Now you can commit and push the changes to GitHub.
+
+
+In order to use the repository from strimzi-kafka-operator project add the following repository definition to parent pom.xml:
+
+    <repositories>
+        <repository>
+            <id>oauth-pre</id>
+            <url>https://raw.githubusercontent.com/mstruk/strimzi-kafka-oauth/m2repo/m2repo</url>
+        </repository>
+    </repositories>
+
+Also, add the same repository to docker-images/kafka/kafka-thirdparty-libs/*/pom.xml
+
+
+
