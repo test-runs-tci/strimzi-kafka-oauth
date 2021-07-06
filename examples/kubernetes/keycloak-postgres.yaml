@@ -37,7 +37,7 @@ spec:
     - name: KEYCLOAK_PASSWORD
       value: admin
     - name: KEYCLOAK_IMPORT
-      value: /tmp/realms/kafka-authz-realm.json,/tmp/realms/demo-realm.json
+      value: /tmp/realms/kafka-authz-realm.json,/tmp/realms/demo-realm.json,/tmp/realms/scope-test-realm.json
     - name: PROXY_ADDRESS_FORWARDING
       value: "true"
     - name: KEYCLOAK_LOGLEVEL
