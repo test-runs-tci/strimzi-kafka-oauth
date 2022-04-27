@@ -2,18 +2,8 @@ dist: bionic
 sudo: required
 language: java
 arch: s390x
-jobs:
-  include:
-  - os: linux
-    arch: s390x
-    jdk: openjdk11
-    addons:
-      apt:
-        packages:
-        - maven
 jdk:
 - openjdk8
-- openjdk11
 cache:
   directories:
   - "$HOME/.m2"
@@ -23,6 +13,9 @@ addons:
   - keycloak
   - hydra
   - hydra-jwt
+  apt:
+    packages:
+    - maven
 env:
   global:
   - PULL_REQUEST=${TRAVIS_PULL_REQUEST}
