@@ -16,6 +16,7 @@ addons:
   apt:
     packages:
     - maven
+    - libjffi-jni
 env:
   global:
   - PULL_REQUEST=${TRAVIS_PULL_REQUEST}
