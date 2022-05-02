@@ -2,8 +2,6 @@ dist: bionic
 sudo: required
 language: java
 arch: s390x
-jdk:
-- openjdk8
 cache:
   directories:
   - "$HOME/.m2"
@@ -17,6 +15,7 @@ addons:
     packages:
     - maven
     - libjffi-jni
+    - openjdk-8-jdk-headless
 env:
   global:
   - PULL_REQUEST=${TRAVIS_PULL_REQUEST}
