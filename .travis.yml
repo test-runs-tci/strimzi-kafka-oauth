@@ -2,6 +2,17 @@ dist: bionic
 sudo: required
 language: java
 arch: s390x
+jobs:
+  include:
+  - os: linux
+    arch: s390x
+    jdk: openjdk11
+    addons:
+      apt:
+        packages:
+        - maven
+        - libjffi-jni
+        - openjdk-8-jdk-headless
 jdk:
   - openjdk8
 cache:
