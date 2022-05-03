@@ -12,7 +12,6 @@ jobs:
         packages:
         - maven
         - libjffi-jni
-        - openjdk-8-jdk-headless
 jdk:
   - openjdk8
 cache:
@@ -24,11 +23,6 @@ addons:
   - keycloak
   - hydra
   - hydra-jwt
-  apt:
-    packages:
-    - maven
-    - libjffi-jni
-    - openjdk-8-jdk-headless
 env:
   global:
   - PULL_REQUEST=${TRAVIS_PULL_REQUEST}

@@ -46,7 +46,9 @@ if [ ${JAVA_MAJOR_VERSION} -eq 1 ] ; then
   set +e
 
   clearDockerEnv
-  docker pull quay.io/strimzi/kafka:0.28.0-kafka-3.1.0
+  docker pull quay.io/strimzi/latest-kafka-3.1.0
+  docker tag quay.io/strimzi/latest-kafka-3.1.0 quay.io/strimzi/kafka:0.28.0-kafka-3.1.0
+  #docker pull quay.io/strimzi/kafka:0.28.0-kafka-3.1.0
   mvn -e -V -B clean install -f testsuite -Pkafka-3_1_0
   EXIT=$?
   exitIfError
