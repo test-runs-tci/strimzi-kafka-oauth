@@ -12,9 +12,6 @@
 
     <modules>
         <module>docker</module>
-        <module>keycloak-auth-tests</module>
-        <module>keycloak-authz-tests</module>
-        <module>keycloak-errors-tests</module>
         <module>hydra-test</module>
     </modules>
 
