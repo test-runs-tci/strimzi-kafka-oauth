@@ -347,6 +347,12 @@
             </properties>
         </profile>
         <profile>
+            <id>kafka-3_1_1</id>
+            <properties>
+                <kafka.docker.image>quay.io/strimzi/kafka:0.29.0-kafka-3.1.1</kafka.docker.image>
+            </properties>
+        </profile>
+        <profile>
             <!--
                 When using this profile you can use -Dkafka.docker.image=YOUR_IMAGE
             -->
