@@ -1,8 +1,6 @@
 #!/usr/bin/env bash
 set -e
 
-arch=$(uname -i)
-
 clearDockerEnv() {
   docker rm -f kafka zookeeper keycloak keycloak-import hydra hydra-import hydra-jwt hydra-jwt-import || true
   DOCKER_TEST_NETWORKS=$(docker network ls | grep test | awk '{print $1}')
@@ -40,6 +38,8 @@ mvn spotbugs:check
 # Run testsuite with java 8 only
 if [ ${JAVA_MAJOR_VERSION} -eq 1 ] ; then
 
+  arch=$(uname -m)
+
   docker pull quay.io/keycloak/keycloak:15.0.0
 
   if [ "$arch" == 's390x' ]; then
@@ -49,8 +49,7 @@ if [ ${JAVA_MAJOR_VERSION} -eq 1 ] ; then
     mvn test-compile spotbugs:check -e -V -B -f testsuite
     set +e
     clearDockerEnv
-    docker pull quay.io/strimzi/latest-kafka-3.1.0
-    docker tag quay.io/strimzi/latest-kafka-3.1.0 quay.io/strimzi/kafka:0.28.0-kafka-3.1.0
+    docker pull quay.io/strimzi/0.29.0-kafka-3.1.0
     mvn -e -V -B clean install -f testsuite -Pkafka-3_1_0
     EXIT=$?
     exitIfError
