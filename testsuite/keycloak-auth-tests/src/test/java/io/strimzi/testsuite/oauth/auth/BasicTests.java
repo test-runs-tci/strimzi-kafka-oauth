@@ -77,7 +77,7 @@ public class BasicTests {
 
         final String authHostPort = "keycloak:8080";
         final String realm = "demo";
-        final String tokenPath = "/auth/realms/" + realm + "/protocol/openid-connect/token";
+        final String tokenPath = "/realms/" + realm + "/protocol/openid-connect/token";
 
         // Inter-broker communication uses INTROSPECT listener
         // We use that listener to test client authentication metrics. There are 2 inter-broker client connections established.
@@ -123,12 +123,12 @@ public class BasicTests {
         final String kafkaBootstrap = "kafka:9092";
         final String authHostPort = "keycloak:8080";
         final String realm = "demo-ec";
-        final String path = "/auth/realms/" + realm + "/protocol/openid-connect/token";
+        final String path = "/realms/" + realm + "/protocol/openid-connect/token";
 
         final String tokenEndpointUri = "http://" + authHostPort + path;
 
         // For metrics
-        final String jwksPath = "/auth/realms/" + realm + "/protocol/openid-connect/certs";
+        final String jwksPath = "/realms/" + realm + "/protocol/openid-connect/certs";
 
         Map<String, String> oauthConfig = new HashMap<>();
         oauthConfig.put(ClientConfig.OAUTH_TOKEN_ENDPOINT_URI, tokenEndpointUri);
@@ -193,12 +193,12 @@ public class BasicTests {
         final String kafkaBootstrap = "kafka:9096";
         final String authHostPort = "keycloak:8080";
         final String realm = "kafka-authz";
-        final String path = "/auth/realms/" + realm + "/protocol/openid-connect/token";
+        final String path = "/realms/" + realm + "/protocol/openid-connect/token";
 
         final String tokenEndpointUri = "http://" + authHostPort + path;
 
         // For metrics
-        String jwksPath = "/auth/realms/" + realm + "/protocol/openid-connect/certs";
+        String jwksPath = "/realms/" + realm + "/protocol/openid-connect/certs";
 
         Map<String, String> oauthConfig = new HashMap<>();
         oauthConfig.put(ClientConfig.OAUTH_TOKEN_ENDPOINT_URI, tokenEndpointUri);
@@ -249,10 +249,10 @@ public class BasicTests {
         final String kafkaBootstrap = "kafka:9093";
         final String authHostPort = "keycloak:8080";
         final String realm = "demo";
-        final String path = "/auth/realms/" + realm + "/protocol/openid-connect/token";
+        final String path = "/realms/" + realm + "/protocol/openid-connect/token";
 
         // For metrics
-        final String introspectPath = "/auth/realms/" + realm + "/protocol/openid-connect/token/introspect";
+        final String introspectPath = "/realms/" + realm + "/protocol/openid-connect/token/introspect";
 
         final String tokenEndpointUri = "http://" + authHostPort + path;
         final String clientId = "kafka-producer-client";
@@ -308,10 +308,10 @@ public class BasicTests {
         final String kafkaBootstrap = "kafka:9093";
         final String authHostPort = "keycloak:8080";
         final String realm = "demo";
-        final String path = "/auth/realms/" + realm + "/protocol/openid-connect/token";
+        final String path = "/realms/" + realm + "/protocol/openid-connect/token";
 
         // For metrics
-        final String introspectPath = "/auth/realms/" + realm + "/protocol/openid-connect/token/introspect";
+        final String introspectPath = "/realms/" + realm + "/protocol/openid-connect/token/introspect";
 
         final String tokenEndpointUri = "http://" + authHostPort + path;
 
@@ -327,6 +327,7 @@ public class BasicTests {
         oauthConfig.put(ClientConfig.OAUTH_CLIENT_ID, clientId);
         oauthConfig.put(ClientConfig.OAUTH_REFRESH_TOKEN, refreshToken);
         oauthConfig.put(ClientConfig.OAUTH_USERNAME_CLAIM, "preferred_username");
+        oauthConfig.put(ClientConfig.OAUTH_SCOPE, "profile");
 
         Properties producerProps = buildProducerConfigOAuthBearer(kafkaBootstrap, oauthConfig);
         Producer<String, String> producer = new KafkaProducer<>(producerProps);

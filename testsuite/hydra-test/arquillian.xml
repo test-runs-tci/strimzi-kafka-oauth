@@ -13,18 +13,16 @@
                 sleepTime: 20 s
             hydra-import:
               await:
-                strategy: log
-                match: 'OAuth 2.0 Client ID: kafka-consumer-client'
-                timeout: 20
+                strategy: sleeping
+                sleepTime: 5 s
             hydra-jwt:
               await:
                 strategy: sleeping
                 sleepTime: 20 s
             hydra-jwt-import:
               await:
-                strategy: log
-                match: 'OAuth 2.0 Client ID: kafka-consumer-client'
-                timeout: 20
+                strategy: sleeping
+                sleepTime: 5 s
             zookeeper:
               await:
                 strategy: sleeping

@@ -123,7 +123,7 @@ public class ErrorReportingTests {
         final String kafkaBootstrap = getKafkaBootstrap(9203);
         final String hostPort = "keycloak:8080";
 
-        final String tokenEndpointUri = "http://" + hostPort + "/auth/realms/demo/protocol/openid-connect/token";
+        final String tokenEndpointUri = "http://" + hostPort + "/realms/demo/protocol/openid-connect/token";
 
         Map<String, String> oauthConfig = new HashMap<>();
         oauthConfig.put(ClientConfig.OAUTH_TOKEN_ENDPOINT_URI, tokenEndpointUri);
@@ -158,7 +158,7 @@ public class ErrorReportingTests {
         final String hostPort = "keycloak:8080";
         final String realm = "demo-ec";
 
-        final String tokenEndpointUri = "http://" + hostPort + "/auth/realms/" + realm + "/protocol/openid-connect/token";
+        final String tokenEndpointUri = "http://" + hostPort + "/realms/" + realm + "/protocol/openid-connect/token";
 
         final String clientId = "kafka-producer-client";
         final String clientSecret = "kafka-producer-client-secret";
@@ -199,7 +199,7 @@ public class ErrorReportingTests {
         final String hostPort = "keycloak:8080";
         final String realm = "demo";
 
-        final String tokenEndpointUri = "http://" + hostPort + "/auth/realms/" + realm + "/protocol/openid-connect/token";
+        final String tokenEndpointUri = "http://" + hostPort + "/realms/" + realm + "/protocol/openid-connect/token";
 
         final String clientId = "kafka-producer-client";
         final String clientSecret = "kafka-producer-client-secret";
@@ -240,7 +240,7 @@ public class ErrorReportingTests {
         final String hostPort = "keycloak:8080";
         final String realm = "expiretest";
 
-        final String tokenEndpointUri = "http://" + hostPort + "/auth/realms/" + realm + "/protocol/openid-connect/token";
+        final String tokenEndpointUri = "http://" + hostPort + "/realms/" + realm + "/protocol/openid-connect/token";
 
         final String clientId = "kafka-producer-client";
         final String clientSecret = "kafka-producer-client-secret";
@@ -369,7 +369,7 @@ public class ErrorReportingTests {
         final String hostPort = "keycloak:8080";
         final String realm = "kafka-authz";
 
-        final String tokenEndpointUri = "http://" + hostPort + "/auth/realms/" + realm + "/protocol/openid-connect/token";
+        final String tokenEndpointUri = "http://" + hostPort + "/realms/" + realm + "/protocol/openid-connect/token";
 
         Map<String, String> oauthConfig = new HashMap<>();
         oauthConfig.put(ClientConfig.OAUTH_TOKEN_ENDPOINT_URI, tokenEndpointUri);
@@ -404,7 +404,7 @@ public class ErrorReportingTests {
         final String hostPort = "keycloak:8080";
         final String realm = "kafka-authz";
 
-        final String tokenEndpointUri = "http://" + hostPort + "/auth/realms/" + realm + "/protocol/openid-connect/token";
+        final String tokenEndpointUri = "http://" + hostPort + "/realms/" + realm + "/protocol/openid-connect/token";
 
         Map<String, String> oauthConfig = new HashMap<>();
         oauthConfig.put(ClientConfig.OAUTH_TOKEN_ENDPOINT_URI, tokenEndpointUri);
@@ -443,7 +443,7 @@ public class ErrorReportingTests {
         final String hostPort = "172.0.0.13:8080";
         final String realm = "kafka-authz";
 
-        final String tokenEndpointUri = "http://" + hostPort + "/auth/realms/" + realm + "/protocol/openid-connect/token";
+        final String tokenEndpointUri = "http://" + hostPort + "/realms/" + realm + "/protocol/openid-connect/token";
 
         int timeout = 5;
         Map<String, String> oauthConfig = new HashMap<>();

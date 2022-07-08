@@ -18,7 +18,7 @@ public class MetricsTest {
 
         final String authHostPort = "keycloak:8080";
         final String realm = "kafka-authz";
-        final String jwksPath = "/auth/realms/" + realm + "/protocol/openid-connect/certs";
+        final String jwksPath = "/realms/" + realm + "/protocol/openid-connect/certs";
 
         TestMetrics metrics = getPrometheusMetrics(URI.create("http://kafka:9404/metrics"));
         BigDecimal value = metrics.getValueSum("strimzi_oauth_http_requests_count", "kind", "jwks", "host", authHostPort, "path", jwksPath, "outcome", "success");
@@ -34,11 +34,13 @@ public class MetricsTest {
         value = metrics.getValueSum("strimzi_oauth_authentication_requests_totaltimems", "kind", "client-auth", "outcome", "success");
         Assert.assertTrue("strimzi_oauth_authentication_requests_totaltimems for client-auth > 0.0", value.doubleValue() > 0.0);
 
-        // Inter-broker auth triggered the only successful validation request
+        // Inter-broker auth triggered the only successful validation request if it managed to complete by now
         value = metrics.getValueSum("strimzi_oauth_validation_requests_count", "kind", "jwks", "mechanism", "OAUTHBEARER", "outcome", "success");
-        Assert.assertEquals("strimzi_oauth_validation_requests_count for jwks == 1", 1, value.intValue());
+        Assert.assertTrue("strimzi_oauth_validation_requests_count for jwks is 0 or 1", value.intValue() == 0 || value.intValue() == 1);
 
-        value = metrics.getValueSum("strimzi_oauth_validation_requests_totaltimems", "kind", "jwks", "mechanism", "OAUTHBEARER", "outcome", "success");
-        Assert.assertTrue("strimzi_oauth_validation_requests_totaltimems for jwks > 0.0", value.doubleValue() > 0.0);
+        if (value.intValue() == 1) {
+            value = metrics.getValueSum("strimzi_oauth_validation_requests_totaltimems", "kind", "jwks", "mechanism", "OAUTHBEARER", "outcome", "success");
+            Assert.assertTrue("strimzi_oauth_validation_requests_totaltimems for jwks > 0.0", value.doubleValue() > 0.0);
+        }
     }
 }
