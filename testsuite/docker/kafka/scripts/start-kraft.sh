@@ -1,10 +1,27 @@
 #!/bin/bash
 set -e
 
-[ "$KAFKA_ZOOKEEPER_CONNECT" == "" ] && KAFKA_ZOOKEEPER_CONNECT=localhost:2181
-[ "$KAFKA_ZOOKEEPER_CONNECTION_TIMEOUT_MS" == "" ] && KAFKA_ZOOKEEPER_CONNECTION_TIMEOUT_MS=6000
+source functions.sh
+
+URI=${KEYCLOAK_URI}
+if [ "" == "${URI}" ]; then
+    URI="http://${KEYCLOAK_HOST:-keycloak}:8080/auth"
+fi
+
+wait_for_url $URI "Waiting for Keycloak to start"
+
+wait_for_url "$URI/realms/${REALM:-demo}" "Waiting for realm '${REALM}' to be available"
 
 ./simple_kafka_config.sh | tee /tmp/strimzi.properties
+
+KAFKA_CLUSTER_ID="$(/opt/kafka/bin/kafka-storage.sh random-uuid)"
+/opt/kafka/bin/kafka-storage.sh format -t $KAFKA_CLUSTER_ID -c /tmp/strimzi.properties
+
+# Add 'admin' user
+#KAFKA_DEBUG= /opt/kafka/bin/kafka-configs.sh --bootstrap-server=localhost:9090 --alter --add-config 'SCRAM-SHA-512=[password=admin-secret]' --entity-type users --entity-name admin
+# Add 'alice' user
+#KAFKA_DEBUG= /opt/kafka/bin/kafka-configs.sh --bootstrap-server=kafka:9090 --alter --add-config 'SCRAM-SHA-512=[password=alice-secret]' --entity-type users --entity-name alice
+
 
 # set log dir to writable directory
 if [ "$LOG_DIR" == "" ]; then

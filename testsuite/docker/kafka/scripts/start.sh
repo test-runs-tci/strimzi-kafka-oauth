@@ -12,6 +12,9 @@ wait_for_url $URI "Waiting for Keycloak to start"
 
 wait_for_url "$URI/realms/${REALM:-demo}" "Waiting for realm '${REALM}' to be available"
 
+[ "$KAFKA_ZOOKEEPER_CONNECT" == "" ] && KAFKA_ZOOKEEPER_CONNECT=localhost:2181
+[ "$KAFKA_ZOOKEEPER_CONNECTION_TIMEOUT_MS" == "" ] && KAFKA_ZOOKEEPER_CONNECTION_TIMEOUT_MS=6000
+
 ./simple_kafka_config.sh | tee /tmp/strimzi.properties
 
 

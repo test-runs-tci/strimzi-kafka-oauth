@@ -71,8 +71,6 @@ echo transaction.state.log.min.isr=`pop_value transaction.state.log.min.isr 1`
 echo log.retention.hours=`pop_value log.retention.hours 168`
 echo log.segment.bytes=`pop_value log.segment.bytes 1073741824`
 echo log.retention.check.interval.ms=`pop_value log.retention.check.interval.ms 300000`
-echo zookeeper.connect=`pop_value zookeeper.connect localhost:2181`
-echo zookeeper.connection.timeout.ms=`pop_value zookeeper.connection.timeout.ms 6000`
 echo group.initial.rebalance.delay.ms=`pop_value group.initial.rebalance.delay.ms 0`
 
 #
