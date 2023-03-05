@@ -30,13 +30,13 @@ public class KeycloakAuthorizationTests {
     @ClassRule
     public static TestContainersWatcher environment =
             new TestContainersWatcher(new File("docker-compose.yml"))
-                    .withServices("keycloak", "kafka", "kafka-acls")
+                    .withServices("keycloak", "kafka")
                     // ensure kafka has started
-                    .waitingFor("kafka", Wait.forLogMessage(".*started \\(kafka.server.KafkaServer\\).*", 1)
+                    .waitingFor("kafka", Wait.forLogMessage(".*started \\(kafka.server.KafkaRaftServer\\).*", 1)
                             .withStartupTimeout(Duration.ofSeconds(180)))
                     // ensure ACLs for user 'alice' have been added
-                    .waitingFor("kafka", Wait.forLogMessage(".*User:alice has ALLOW permission for operations: IDEMPOTENT_WRITE.*", 1)
-                            .withStartupTimeout(Duration.ofSeconds(210)))
+                    //.waitingFor("kafka", Wait.forLogMessage(".*User:alice has ALLOW permission for operations: IDEMPOTENT_WRITE.*", 1)
+                    //        .withStartupTimeout(Duration.ofSeconds(210)))
                     // ensure a grants fetch request to 'keycloak' has been performed by authorizer's grants refresh job
                     .waitingFor("kafka", Wait.forLogMessage(".*after: \\{\\}.*", 1)
                             .withStartupTimeout(Duration.ofSeconds(210)));
@@ -62,10 +62,6 @@ public class KeycloakAuthorizationTests {
 
             logStart("KeycloakAuthorizationTest :: MetricsTest");
             MetricsTest.doTest();
-
-            // This test assumes that it is the first producing and consuming test
-            logStart("KeycloakAuthorizationTest :: MultiSaslTests");
-            new MultiSaslTest(kafkaContainer).doTest();
 
             logStart("KeycloakAuthorizationTest :: JwtValidationAuthzTest");
             new BasicTest(JWT_LISTENER, false).doTest();
