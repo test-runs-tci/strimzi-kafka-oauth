@@ -90,6 +90,5 @@
 
     <modules>
         <module>kafka-oauth-strimzi</module>
-        <module>spring</module>
     </modules>
 </project>
