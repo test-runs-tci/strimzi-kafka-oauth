@@ -21,10 +21,7 @@ import io.strimzi.kafka.oauth.server.authorizer.metrics.KeycloakAuthorizationSen
 import io.strimzi.kafka.oauth.services.OAuthMetrics;
 import io.strimzi.kafka.oauth.services.ServiceException;
 import io.strimzi.kafka.oauth.services.Services;
-import io.strimzi.kafka.oauth.services.SessionFuture;
-import io.strimzi.kafka.oauth.services.Sessions;
 import io.strimzi.kafka.oauth.server.OAuthKafkaPrincipalBuilder;
-import io.strimzi.kafka.oauth.validator.DaemonThreadFactory;
 import kafka.security.authorizer.AclAuthorizer;
 import org.apache.kafka.common.Endpoint;
 import org.apache.kafka.common.acl.AclBinding;
@@ -53,15 +50,7 @@ import java.util.Map;
 import java.util.Properties;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentLinkedQueue;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
-import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import static io.strimzi.kafka.oauth.common.Config.isTrue;
@@ -187,16 +176,14 @@ public class KeycloakRBACAuthorizer implements Authorizer {
     // Turning it to false will not enforce access token expiry time (only for debugging purposes during development)
     private final boolean denyWhenTokenInvalid = true;
 
-    private ExecutorService workerPool;
-
     private OAuthMetrics metrics;
     private boolean enableMetrics;
     private SensorKeyProducer authzSensorKeyProducer;
     private SensorKeyProducer grantsSensorKeyProducer;
-    private final Semaphores<JsonNode> semaphores = new Semaphores<>();
 
     private Authorizer delegate;
 
+    private GrantsHandler grantsHandler;
 
     @Override
     public void configure(Map<String, ?> configs) {
@@ -242,15 +229,13 @@ public class KeycloakRBACAuthorizer implements Authorizer {
             throw new ConfigException("Invalid value of 'strimzi.authorization.grants.refresh.pool.size': " + grantsRefreshPoolSize + ". Has to be >= 1.");
         }
 
-        // Less or equal zero means to never check
+        // Less or equal zero means to never refresh
         final int grantsRefreshPeriodSeconds = config.getValueAsInt(AuthzConfig.STRIMZI_AUTHORIZATION_GRANTS_REFRESH_PERIOD_SECONDS, 60);
+        final int grantsMaxIdleTimeSeconds = configureGrantsMaxIdleTimeSeconds(config);
 
-        if (grantsRefreshPeriodSeconds > 0) {
-            workerPool = Executors.newFixedThreadPool(grantsRefreshPoolSize);
-            setupRefreshGrantsJob(grantsRefreshPeriodSeconds);
-        }
+        final int gcPeriodSeconds = configureGcPeriodSeconds(config);
 
-        reuseGrants = config.getValueAsBoolean(AuthzConfig.STRIMZI_AUTHORIZATION_REUSE_GRANTS, false);
+        reuseGrants = config.getValueAsBoolean(AuthzConfig.STRIMZI_AUTHORIZATION_REUSE_GRANTS, true);
 
         configureHttpRetries(config);
 
@@ -259,12 +244,14 @@ public class KeycloakRBACAuthorizer implements Authorizer {
         authzSensorKeyProducer = new KeycloakAuthorizationSensorKeyProducer("keycloak-authorizer", tokenEndpointUrl);
         grantsSensorKeyProducer = new GrantsHttpSensorKeyProducer("keycloak-authorizer", tokenEndpointUrl);
 
+        grantsHandler = new GrantsHandler(grantsRefreshPeriodSeconds, grantsRefreshPoolSize, grantsMaxIdleTimeSeconds, this::fetchAuthorizationGrantsOnce, httpRetries, gcPeriodSeconds);
+
         if (delegate != null) {
             delegate.configure(configs);
         }
 
         if (log.isDebugEnabled()) {
-            log.debug("Configured KeycloakRBACAuthorizer:\n    tokenEndpointUri: " + tokenEndpointUrl
+            log.debug("Configured KeycloakRBACAuthorizer (@" + System.identityHashCode(this) + "):\n    tokenEndpointUri: " + tokenEndpointUrl
                     + "\n    sslSocketFactory: " + socketFactory
                     + "\n    hostnameVerifier: " + hostnameVerifier
                     + "\n    clientId: " + clientId
@@ -273,13 +260,32 @@ public class KeycloakRBACAuthorizer implements Authorizer {
                     + "\n    superUsers: " + superUsers.stream().map(u -> "'" + u.getType() + ":" + u.getName() + "'").collect(Collectors.toList())
                     + "\n    grantsRefreshPeriodSeconds: " + grantsRefreshPeriodSeconds
                     + "\n    grantsRefreshPoolSize: " + grantsRefreshPoolSize
+                    + "\n    grantsMaxIdleTimeSeconds: " + grantsMaxIdleTimeSeconds
                     + "\n    httpRetries: " + httpRetries
                     + "\n    reuseGrants: " + reuseGrants
                     + "\n    connectTimeoutSeconds: " + connectTimeoutSeconds
                     + "\n    readTimeoutSeconds: " + readTimeoutSeconds
                     + "\n    enableMetrics: " + enableMetrics
+                    + "\n    gcPeriodSeconds: " + gcPeriodSeconds
             );
         }
+    }
+
+    private int configureGrantsMaxIdleTimeSeconds(AuthzConfig config) {
+        int grantsMaxIdleTimeSeconds = config.getValueAsInt(AuthzConfig.STRIMZI_AUTHORIZATION_GRANTS_MAX_IDLE_TIME_SECONDS, 60);
+        if (grantsMaxIdleTimeSeconds <= 0) {
+            log.warn("'strimzi.authorization.grants.max.idle.time.seconds' set to invalid value: {} (should be a positive number), using the default value: 60 seconds", grantsMaxIdleTimeSeconds);
+        }
+        return grantsMaxIdleTimeSeconds;
+    }
+
+    private int configureGcPeriodSeconds(AuthzConfig config) {
+        int gcPeriodSeconds = config.getValueAsInt(AuthzConfig.STRIMZI_AUTHORIZATION_GC_PERIOD_SECONDS, 300);
+        if (gcPeriodSeconds <= 0) {
+            log.warn("'strimzi.authorization.gc.period.seconds' set to invalid value: {}, using the default value: 300 seconds", gcPeriodSeconds);
+            gcPeriodSeconds = 300;
+        }
+        return gcPeriodSeconds;
     }
 
     /**
@@ -384,6 +390,7 @@ public class KeycloakRBACAuthorizer implements Authorizer {
         String[] keys = {
             AuthzConfig.STRIMZI_AUTHORIZATION_GRANTS_REFRESH_PERIOD_SECONDS,
             AuthzConfig.STRIMZI_AUTHORIZATION_GRANTS_REFRESH_POOL_SIZE,
+            AuthzConfig.STRIMZI_AUTHORIZATION_GRANTS_MAX_IDLE_TIME_SECONDS,
             AuthzConfig.STRIMZI_AUTHORIZATION_HTTP_RETRIES,
             AuthzConfig.STRIMZI_AUTHORIZATION_REUSE_GRANTS,
             AuthzConfig.STRIMZI_AUTHORIZATION_DELEGATE_TO_KAFKA_ACL,
@@ -409,7 +416,8 @@ public class KeycloakRBACAuthorizer implements Authorizer {
             AuthzConfig.STRIMZI_AUTHORIZATION_READ_TIMEOUT_SECONDS,
             Config.OAUTH_READ_TIMEOUT_SECONDS,
             AuthzConfig.STRIMZI_AUTHORIZATION_ENABLE_METRICS,
-            Config.OAUTH_ENABLE_METRICS
+            Config.OAUTH_ENABLE_METRICS,
+            AuthzConfig.STRIMZI_AUTHORIZATION_GC_PERIOD_SECONDS
         };
 
         // Copy over the keys
@@ -496,7 +504,7 @@ public class KeycloakRBACAuthorizer implements Authorizer {
 
             //
             // Check if authorization grants are available
-            // If not, fetch authorization grants and store them in the token
+            // If not, fetch authorization grants and store them in the grants cache
             //
 
             BearerTokenWithPayload token = ((OAuthKafkaPrincipal) principal).getJwt();
@@ -506,11 +514,22 @@ public class KeycloakRBACAuthorizer implements Authorizer {
                 return Collections.nCopies(actions.size(), AuthorizationResult.DENIED);
             }
 
-            grants = token.getPayload();
-
-            if (grants == null) {
-                log.debug("No grants yet for user: {}", principal);
-                grants = handleFetchingGrants(token);
+            //grants = token.getPayload();
+            GrantsHandler.Info grantsInfo = grantsHandler.getGrantsInfoFromCache(token);
+            grants = grantsInfo.getGrants();
+            boolean newSession = token.getPayload() == null;
+            boolean mustReload = !reuseGrants && newSession;
+            if (grants == null || mustReload) {
+                if (grants == null) {
+                    log.debug("No grants yet for user: {}", principal);
+                } else {
+                    log.debug("Grants available but new session and reuseGrants is `false`");
+                }
+                grants = grantsHandler.fetchGrantsForUserOrWaitForDelivery(principal.getName(), grantsInfo);
+                if (mustReload) {
+                    // save empty JSON object as marker that the session has had the grants loaded.
+                    token.setPayload(JSONUtil.newObjectNode());
+                }
             }
 
             if (log.isDebugEnabled()) {
@@ -590,88 +609,6 @@ public class KeycloakRBACAuthorizer implements Authorizer {
         return false;
     }
 
-
-
-    private JsonNode handleFetchingGrants(BearerTokenWithPayload token) {
-        // Fetch authorization grants
-        Semaphores.SemaphoreResult<JsonNode> semaphore = semaphores.acquireSemaphore(token.value());
-
-        // Try to acquire semaphore for fetching grants
-        if (semaphore.acquired()) {
-            // If acquired
-            try {
-                JsonNode grants = null;
-                if (reuseGrants) {
-                    // If reuseGrants is enabled, first try to get the grants from one of the existing sessions having the same access token
-                    grants = lookupGrantsInExistingSessions(token);
-                }
-                if (grants == null) {
-                    // If grants not available it is on us to fetch (others may be waiting)
-                    grants = fetchAndStoreGrants(token);
-                } else {
-                    log.debug("Found existing grants for the token on another session");
-                }
-
-                semaphore.future().complete(grants);
-                return grants;
-
-            } catch (Throwable t) {
-                semaphore.future().completeExceptionally(t);
-                throw t;
-            } finally {
-                semaphores.releaseSemaphore(token.value());
-            }
-
-        } else {
-            try {
-                log.debug("Waiting on another thread to get grants");
-                return semaphore.future().get();
-            } catch (ExecutionException e) {
-                Throwable cause = e.getCause();
-                if (cause instanceof ServiceException) {
-                    throw (ServiceException) cause;
-                } else {
-                    throw new ServiceException("ExecutionException waiting for grants result: ", e);
-                }
-            } catch (InterruptedException e) {
-                throw new ServiceException("InterruptedException waiting for grants result: ", e);
-            }
-        }
-    }
-
-    private JsonNode fetchAndStoreGrants(BearerTokenWithPayload token) {
-        // If no grants found, fetch grants from server
-        JsonNode grants = null;
-        try {
-            log.debug("Fetching grants from Keycloak");
-            grants = fetchAuthorizationGrants(token.value());
-            if (grants == null) {
-                log.debug("Received null grants for token: {}", mask(token.value()));
-                grants = JSONUtil.newObjectNode();
-            }
-        } catch (HttpException e) {
-            if (e.getStatus() == 403) {
-                grants = JSONUtil.newObjectNode();
-            } else {
-                log.warn("Unexpected status while fetching authorization data - will retry next time: " + e.getMessage());
-            }
-        }
-        if (grants != null) {
-            // Store authz grants in the token, so they are available for subsequent requests
-            log.debug("Saving non-null grants for token: {}", mask(token.value()));
-            token.setPayload(grants);
-        }
-        return grants;
-    }
-
-    private static JsonNode lookupGrantsInExistingSessions(BearerTokenWithPayload token) {
-        Sessions sessions = Services.getInstance().getSessions();
-        BearerTokenWithPayload existing = sessions.findFirst(t ->
-            t.value().equals(token.value()) && t.getPayload() != null
-        );
-        return existing != null ? existing.getPayload() : null;
-    }
-
     static List<ScopesSpec.AuthzScope> validateScopes(List<String> scopes) {
         List<ScopesSpec.AuthzScope> enumScopes = new ArrayList<>(scopes.size());
         for (String name: scopes) {
@@ -743,46 +680,6 @@ public class KeycloakRBACAuthorizer implements Authorizer {
                 ", resource: " + fromResourcePattern(action.resourcePattern()) + ",\n permissions: " + authz);
     }
 
-
-    /**
-     * Method that performs the POST request to fetch grants for the token.
-     * In case of a connection failure or a non-200 status response this method immediately retries the request if so configured.
-     * <p>
-     * Status 401 does not trigger a retry since it is used to signal an invalid token.
-     * Status 403 does not trigger a retry either since it signals no permissions.
-     *
-     * @param token The raw access token
-     * @return Grants JSON response
-     */
-    private JsonNode fetchAuthorizationGrants(String token) {
-
-        int i = 0;
-        do {
-            i += 1;
-
-            try {
-                if (i > 1) {
-                    log.debug("Grants request attempt no. " + i);
-                }
-                return fetchAuthorizationGrantsOnce(token);
-
-            } catch (Exception e) {
-                if (e instanceof HttpException) {
-                    int status = ((HttpException) e).getStatus();
-                    if (403 == status || 401 == status) {
-                        throw e;
-                    }
-                }
-
-                log.info("Failed to fetch grants on try no. " + i, e);
-                if (i > httpRetries) {
-                    log.debug("Failed to fetch grants after " + i + " tries");
-                    throw e;
-                }
-            }
-        } while (true);
-    }
-
     private JsonNode fetchAuthorizationGrantsOnce(String token) {
 
         String authorization = "Bearer " + token;
@@ -809,135 +706,17 @@ public class KeycloakRBACAuthorizer implements Authorizer {
         return response;
     }
 
-    private void setupRefreshGrantsJob(int refreshSeconds) {
-        // Set up periodic timer to fetch grants for active sessions every refresh seconds
-        ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor(new DaemonThreadFactory());
-
-        scheduler.scheduleAtFixedRate(this::refreshGrants, refreshSeconds, refreshSeconds, TimeUnit.SECONDS);
-    }
-
-    private void refreshGrants() {
-        try {
-            log.debug("Refreshing authorization grants ...");
-            // Multiple sessions can be authenticated with the same access token
-            // Only make one grants request for one unique access_token,
-            // but update all sessions for the same token
-            ConcurrentHashMap<String, ConcurrentLinkedQueue<BearerTokenWithPayload>> tokens = new ConcurrentHashMap<>();
-
-            Predicate<BearerTokenWithPayload> filter = token -> {
-                ConcurrentLinkedQueue<BearerTokenWithPayload> queue = tokens.computeIfAbsent(token.value(), k -> {
-                    ConcurrentLinkedQueue<BearerTokenWithPayload> q = new ConcurrentLinkedQueue<>();
-                    q.add(token);
-                    return q;
-                });
-
-                // If we are the first for the access_token return true
-                // if not, add the token to the queue, and return false
-                if (token != queue.peek()) {
-                    queue.add(token);
-                    return false;
-                }
-                return true;
-            };
-
-            Sessions sessions = Services.getInstance().getSessions();
-            List<SessionFuture<?>> scheduled = scheduleGrantsRefresh(filter, sessions);
-
-            for (SessionFuture<?> f: scheduled) {
-                try {
-                    f.get();
-                } catch (ExecutionException e) {
-                    log.warn("[IGNORED] Failed to fetch grants for token: " + e.getMessage(), e);
-                    final Throwable cause = e.getCause();
-                    if (cause instanceof HttpException) {
-                        if (401 == ((HttpException) cause).getStatus()) {
-                            JsonNode emptyGrants = JSONUtil.newObjectNode();
-                            ConcurrentLinkedQueue<BearerTokenWithPayload> queue = tokens.get(f.getToken().value());
-                            for (BearerTokenWithPayload token: queue) {
-                                token.setPayload(emptyGrants);
-                                sessions.remove(token);
-                                if (log.isDebugEnabled()) {
-                                    log.debug("Removed invalid session from sessions map (session: {}, token: {}). Will not refresh its grants any more.",
-                                            f.getToken().getSessionId(), mask(f.getToken().value()));
-                                }
-                            }
-                        }
-                    }
-                } catch (Throwable e) {
-                    log.warn("[IGNORED] Failed to fetch grants for session: " + f.getToken().getSessionId() + ", token: " + mask(f.getToken().value()) + " - " + e.getMessage(), e);
-                }
-            }
-
-            // Go over tokens, and copy the grants from the first session
-            // for same access token to all the others
-            for (ConcurrentLinkedQueue<BearerTokenWithPayload> q: tokens.values()) {
-                BearerTokenWithPayload refreshed = null;
-                for (BearerTokenWithPayload t: q) {
-                    if (refreshed == null) {
-                        refreshed = t;
-                        continue;
-                    }
-                    JsonNode oldGrants = t.getPayload();
-                    JsonNode newGrants = refreshed.getPayload();
-                    if (newGrants == null) {
-                        newGrants = JSONUtil.newObjectNode();
-                    }
-                    if (newGrants.equals(oldGrants)) {
-                        // Grants refreshed, but no change - no need to copy over to all sessions
-                        break;
-                    }
-                    if (log.isDebugEnabled()) {
-                        log.debug("Grants have changed for session: {}, token: {}\nbefore: {}\nafter: {}", t.getSessionId(), mask(t.value()), oldGrants, newGrants);
-                    }
-                    t.setPayload(newGrants);
-                }
-            }
-
-        } catch (Throwable t) {
-            // Log, but don't rethrow the exception to prevent scheduler cancelling the scheduled job.
-            log.error(t.getMessage(), t);
-        } finally {
-            log.debug("Done refreshing grants");
-        }
-    }
-
-    private List<SessionFuture<?>> scheduleGrantsRefresh(Predicate<BearerTokenWithPayload> filter, Sessions sessions) {
-        return sessions.executeTask(workerPool, filter, token -> {
-            if (log.isTraceEnabled()) {
-                log.trace("Fetch grants for session: " + token.getSessionId() + ", token: " + mask(token.value()));
-            }
-
-            JsonNode newGrants;
-            try {
-                newGrants = fetchAuthorizationGrants(token.value());
-            } catch (HttpException e) {
-                if (403 == e.getStatus()) {
-                    // 403 happens when no policy matches the token - thus there are no grants
-                    newGrants = JSONUtil.newObjectNode();
-                } else {
-                    throw e;
-                }
-            }
-            Object oldGrants = token.getPayload();
-            if (!newGrants.equals(oldGrants)) {
-                if (log.isDebugEnabled()) {
-                    log.debug("Grants have changed for session: {}, token: {}\nbefore: {}\nafter: {}", token.getSessionId(), mask(token.value()), oldGrants, newGrants);
-                }
-                token.setPayload(newGrants);
-            }
-        });
-    }
-
     @Override
     public void close() {
         // We don't care about finishing the refresh tasks
-        try {
-            if (workerPool != null) {
-                workerPool.shutdownNow();
+        if (grantsHandler != null) {
+            try {
+                grantsHandler.close();
+            } catch (Exception e) {
+                log.error("Failed to shutdown the worker pool", e);
             }
-        } catch (Exception e) {
-            log.error("Failed to shutdown the worker pool", e);
         }
+
         if (delegate != null) {
             try {
                 delegate.close();

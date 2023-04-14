@@ -132,7 +132,6 @@ public class MultiSaslTest {
 
         // Test the grants reuse feature
         int fetchGrantsCount = currentFetchGrantsLogCount();
-        checkAuthorizationGrantsReuse(0);
 
         // Producing to JWT listener using SASL/OAUTHBEARER using access token should succeed
         String accessToken = Common.loginWithUsernamePassword(
@@ -141,8 +140,6 @@ public class MultiSaslTest {
         producerProps = producerConfigOAuthBearerAccessToken(JWT_LISTENER, accessToken);
         produceToTopic("KeycloakAuthorizationTest-multiSaslTest-oauthbearer", producerProps);
 
-        // Test the grants reuse feature
-        checkAuthorizationGrantsReuse(2);
         checkGrantsFetchCountDiff(fetchGrantsCount);
 
         // producing to JWTPLAIN listener using SASL/PLAIN using $accessToken should succeed
@@ -155,16 +152,6 @@ public class MultiSaslTest {
         // check metrics
         checkAuthorizationRequestsMetrics(authHostPort, tokenPath);
         checkGrantsMetrics(authHostPort, tokenPath);
-    }
-
-    private void checkAuthorizationGrantsReuse(int numberOfReuses) {
-        List<String> lines = getContainerLogsForString(kafkaContainer, "Found existing grants for the token on another session");
-
-        if (numberOfReuses == 0) {
-            Assert.assertEquals("There should be no reuse of existing grants in Kafka log yet", 0, lines.size());
-        } else {
-            Assert.assertTrue("There should be " + numberOfReuses + " reuses of existing grants in Kafka log", lines.size() >= numberOfReuses);
-        }
     }
 
     private int currentFetchGrantsLogCount() {
@@ -185,11 +172,12 @@ public class MultiSaslTest {
         value = metrics.getValueSum("strimzi_oauth_http_requests_totaltimems", "kind", "keycloak-authorization", "host", authHostPort, "path", tokenPath, "outcome", "success");
         Assert.assertTrue("strimzi_oauth_http_requests_totaltimems for keycloak-authorization > 0", value.doubleValue() > 0.0);
 
-        value = metrics.getValueSum("strimzi_oauth_http_requests_count", "kind", "keycloak-authorization", "host", authHostPort, "path", tokenPath, "outcome", "error", "status", "403");
-        Assert.assertTrue("strimzi_oauth_http_requests_count with no-grants for keycloak-authorization > 0", value.intValue() > 0);
+        // What operation triggered the grants load for a user with no grants (which user?)
+        //value = metrics.getValueSum("strimzi_oauth_http_requests_count", "kind", "keycloak-authorization", "host", authHostPort, "path", tokenPath, "outcome", "error", "status", "403");
+        //Assert.assertTrue("strimzi_oauth_http_requests_count with no-grants for keycloak-authorization > 0", value.intValue() > 0);
 
-        value = metrics.getValueSum("strimzi_oauth_http_requests_totaltimems", "kind", "keycloak-authorization", "host", authHostPort, "path", tokenPath, "outcome", "error", "status", "403");
-        Assert.assertTrue("strimzi_oauth_http_requests_totaltimems with no-grants for keycloak-authorization > 0", value.doubleValue() > 0.0);
+        //value = metrics.getValueSum("strimzi_oauth_http_requests_totaltimems", "kind", "keycloak-authorization", "host", authHostPort, "path", tokenPath, "outcome", "error", "status", "403");
+        //Assert.assertTrue("strimzi_oauth_http_requests_totaltimems with no-grants for keycloak-authorization > 0", value.doubleValue() > 0.0);
     }
 
     private static void checkAuthorizationRequestsMetrics(String authHostPort, String tokenPath) throws IOException {

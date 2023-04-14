@@ -70,6 +70,7 @@ public class KeycloakRaftAuthorizationTests {
     @Test
     public void doTest() throws Exception {
         try {
+
             String kafkaContainer = environment.getContainerByServiceName("kafka_1").get().getContainerInfo().getName().substring(1);
 
             logStart("KeycloakRaftAuthorizationTest :: ConfigurationTest");

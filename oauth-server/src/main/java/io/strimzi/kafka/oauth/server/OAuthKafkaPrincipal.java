@@ -27,30 +27,6 @@ public final class OAuthKafkaPrincipal extends KafkaPrincipal {
     private final Set<String> groups;
 
     /**
-     * Create a new instance
-     *
-     * @param principalType Principal type (e.g. USER)
-     * @param name A name
-     */
-    public OAuthKafkaPrincipal(String principalType, String name) {
-        this(principalType, name, (Set<String>) null);
-    }
-
-    /**
-     * Create a new instance
-     *
-     * @param principalType Principal type (e.g. USER)
-     * @param name A name
-     * @param groups A set of groups for the user
-     */
-    public OAuthKafkaPrincipal(String principalType, String name, Set<String> groups) {
-        super(principalType, name);
-        this.jwt = null;
-
-        this.groups = groups == null ? null : Collections.unmodifiableSet(groups);
-    }
-
-    /**
      * Create a new instance, and extract groups info from the passed {@link BearerTokenWithPayload}
      *
      * @param principalType Principal type (e.g. USER)
@@ -61,7 +37,7 @@ public final class OAuthKafkaPrincipal extends KafkaPrincipal {
     public OAuthKafkaPrincipal(String principalType, String name, BearerTokenWithPayload jwt) {
         super(principalType, name);
         this.jwt = jwt;
-        Set<String> parsedGroups = jwt.getGroups();
+        Set<String> parsedGroups = jwt != null ? jwt.getGroups() : null;
 
         this.groups = parsedGroups == null ? null : Collections.unmodifiableSet(parsedGroups);
     }

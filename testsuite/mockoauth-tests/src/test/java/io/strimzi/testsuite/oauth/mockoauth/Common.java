@@ -259,11 +259,25 @@ public class Common {
                 "{\"username\": \"" + username + "\", \"password\": \"" + password + "\"}", String.class);
     }
 
+    public static void createOAuthUser(String username, String password, long expiresInSeconds) throws IOException {
+        HttpUtil.post(URI.create("http://mockoauth:8091/admin/users"),
+                null,
+                "application/json",
+                "{\"username\": \"" + username + "\", \"password\": \"" + password + "\", \"expires_in\": " + expiresInSeconds + "}", String.class);
+    }
+
     public static void revokeToken(String token) throws IOException {
         HttpUtil.post(URI.create("http://mockoauth:8091/admin/revocations"),
                 null,
                 "application/json",
                 "{\"token\": \"" + token + "\"}", String.class);
+    }
+
+    public static void addGrantsForToken(String token, String grants) throws IOException {
+        HttpUtil.post(URI.create("http://mockoauth:8091/admin/grants_map"),
+                null,
+                "application/json",
+                "{\"token\": \"" + token + "\", \"grants\": " + grants + "}", String.class);
     }
 
     public static Metrics reloadMetrics() throws IOException {
@@ -309,7 +323,7 @@ public class Common {
         }
 
         @Override
-        public ObjectNode getJSON() {
+        public ObjectNode getClaimsJSON() {
             return ti.payload();
         }
 

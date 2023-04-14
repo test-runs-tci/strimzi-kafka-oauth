@@ -5,7 +5,6 @@
 package io.strimzi.kafka.oauth.server.authorizer;
 
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
-import io.strimzi.kafka.oauth.common.Config;
 import io.strimzi.kafka.oauth.common.ConfigException;
 import io.strimzi.kafka.oauth.server.OAuthKafkaPrincipalBuilder;
 import org.apache.kafka.common.Uuid;
@@ -24,7 +23,6 @@ import java.util.Map;
  * is set to <code>true</code>.
  * <p>
  * This authorizer auto-detects whether the broker runs in KRaft mode or not based on the presence and value of <code>process.roles</code> config option.
- * When in KRaft mode the authorizer relies on <code>strimzi.authorization.reuse.grants</code> behaviour, and automatically enables this mode.
  * <p>
  * KeycloakAuthorizer works in conjunction with JaasServerOauthValidatorCallbackHandler, and requires
  * {@link OAuthKafkaPrincipalBuilder} to be configured as 'principal.builder.class' in 'server.properties' file.
@@ -53,7 +51,6 @@ public class KeycloakAuthorizer extends KeycloakRBACAuthorizer implements Cluste
         isKRaft = detectKRaft(configs);
         if (isKRaft) {
             log.debug("Detected KRaft mode ('process.roles' configured)");
-            return new AuthzConfigWithForcedReuseGrants(superConfig);
         }
         return superConfig;
     }
@@ -156,20 +153,5 @@ public class KeycloakAuthorizer extends KeycloakRBACAuthorizer implements Cluste
             throw new UnsupportedOperationException("StandardAuthorizer ACL delegation not enabled");
         }
         kraftAuthorizer.removeAcl(id);
-    }
-
-    private static class AuthzConfigWithForcedReuseGrants extends AuthzConfig {
-        AuthzConfigWithForcedReuseGrants(Config superConfig) {
-            super(superConfig);
-        }
-
-        @Override
-        public String getValue(String key, String fallback) {
-            if (AuthzConfig.STRIMZI_AUTHORIZATION_REUSE_GRANTS.equals(key)) {
-                log.debug("Configuration option '" + AuthzConfig.STRIMZI_AUTHORIZATION_REUSE_GRANTS + "' forced to 'true'");
-                return "true";
-            }
-            return super.getValue(key, fallback);
-        }
     }
 }

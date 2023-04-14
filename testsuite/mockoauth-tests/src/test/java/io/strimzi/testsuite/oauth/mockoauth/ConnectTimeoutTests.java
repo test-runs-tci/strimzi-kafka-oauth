@@ -102,6 +102,7 @@ public class ConnectTimeoutTests {
             Assert.assertTrue("Unexpected diff: " + diff, diff > timeoutOverride * 1000 && diff < timeoutOverride * 1000 + 1000);
         } finally {
             changeAuthServerMode("token", "mode_200");
+            System.clearProperty("oauth.read.timeout.seconds");
         }
     }
 

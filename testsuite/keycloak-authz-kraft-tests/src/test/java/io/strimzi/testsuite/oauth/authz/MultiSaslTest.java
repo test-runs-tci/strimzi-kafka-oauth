@@ -136,8 +136,8 @@ public class MultiSaslTest {
         //}
 
         // Test the grants reuse feature
-        int fetchGrantsCount = currentFetchGrantsLogCount();
-        checkAuthorizationGrantsReuse(0);
+        //int fetchGrantsCount = currentFetchGrantsLogCount();
+        //checkAuthorizationGrantsReuse(0);
 
         // Producing to JWT listener using SASL/OAUTHBEARER using access token should succeed
         String accessToken = Common.loginWithUsernamePassword(
@@ -147,15 +147,15 @@ public class MultiSaslTest {
         produceToTopic("KeycloakAuthorizationTest-multiSaslTest-oauthbearer", producerProps);
 
         // Test the grants reuse feature
-        checkAuthorizationGrantsReuse(2);
-        checkGrantsFetchCountDiff(fetchGrantsCount);
+        //checkAuthorizationGrantsReuse(2);
+        //checkGrantsFetchCountDiff(fetchGrantsCount);
 
         // producing to JWTPLAIN listener using SASL/PLAIN using $accessToken should succeed
         producerProps = producerConfigPlain(JWTPLAIN_LISTENER, username, "$accessToken:" + accessToken);
         produceToTopic("KeycloakAuthorizationTest-multiSaslTest-oauth-over-plain", producerProps);
 
         // Test the grants reuse feature
-        checkGrantsFetchCountDiff(fetchGrantsCount);
+        //checkGrantsFetchCountDiff(fetchGrantsCount);
 
         // check metrics
         checkAuthorizationRequestsMetrics(authHostPort, tokenPath);

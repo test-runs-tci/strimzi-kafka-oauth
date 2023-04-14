@@ -44,9 +44,19 @@ public class AuthzConfig extends Config {
     public static final String STRIMZI_AUTHORIZATION_GRANTS_REFRESH_POOL_SIZE = "strimzi.authorization.grants.refresh.pool.size";
 
     /**
+     * "strimzi.authorization.grants.max.idle.time.seconds"
+     */
+    public static final String STRIMZI_AUTHORIZATION_GRANTS_MAX_IDLE_TIME_SECONDS = "strimzi.authorization.grants.max.idle.time.seconds";
+
+    /**
      * "strimzi.authorization.http.retries"
      */
     public static final String STRIMZI_AUTHORIZATION_HTTP_RETRIES = "strimzi.authorization.http.retries";
+
+    /**
+     * A period in seconds for a background service that removes no-longer-used grants information from grants cache
+     */
+    public static final String STRIMZI_AUTHORIZATION_GC_PERIOD_SECONDS = "strimzi.authorization.gc.period.seconds";
 
     /**
      * "strimzi.authorization.ssl.truststore.location"

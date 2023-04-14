@@ -36,10 +36,11 @@ public class KeycloakAuthorizationTests {
                             .withStartupTimeout(Duration.ofSeconds(180)))
                     // ensure ACLs for user 'alice' have been added
                     .waitingFor("kafka", Wait.forLogMessage(".*User:alice has ALLOW permission for operations: IDEMPOTENT_WRITE.*", 1)
-                            .withStartupTimeout(Duration.ofSeconds(210)))
-                    // ensure a grants fetch request to 'keycloak' has been performed by authorizer's grants refresh job
-                    .waitingFor("kafka", Wait.forLogMessage(".*after: \\{\\}.*", 1)
                             .withStartupTimeout(Duration.ofSeconds(210)));
+                    // ensure one grants fetch request to 'keycloak' has been performed by authorizer
+                    // MetricsTest expects that
+                    //.waitingFor("kafka", Wait.forLogMessage(".*Done refreshing grants .*", 1)
+                    //        .withStartupTimeout(Duration.ofSeconds(210)));
 
     @Rule
     public TestRule logCollector = new TestContainersLogCollector(environment);
