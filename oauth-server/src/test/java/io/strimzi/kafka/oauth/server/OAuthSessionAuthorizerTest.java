@@ -329,7 +329,6 @@ public class OAuthSessionAuthorizerTest {
         private List<Action> actions;
         private Map<String, ?> config;
 
-        long entryTime = System.currentTimeMillis();
 
         MockAuthorizerLog(AuthorizableRequestContext requestContext, List<Action> actions) {
             this.type = MockAuthorizerType.AUTHORIZE;
@@ -345,11 +344,7 @@ public class OAuthSessionAuthorizerTest {
 
     enum MockAuthorizerType {
         CONFIGURE,
-        AUTHORIZE,
-        ADD_ACLS,
-        REMOVE_ACLS,
-        GET_ACLS,
-        CLOSE
+        AUTHORIZE
     }
 
 }

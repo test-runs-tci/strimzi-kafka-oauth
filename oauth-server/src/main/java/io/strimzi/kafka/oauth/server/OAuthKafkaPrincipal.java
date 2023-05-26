@@ -17,7 +17,7 @@ import static io.strimzi.kafka.oauth.common.LogUtil.mask;
 /**
  * This class extends the KafkaPrincipal object to store additional info obtained at session authentication time,
  * and required later by a custom authorizer.
- *
+ * <p>
  * Any additional fields should not be included in equals / hashcode check. If they are, that will break re-authentication.
  */
 @SuppressFBWarnings("EQ_DOESNT_OVERRIDE_EQUALS")

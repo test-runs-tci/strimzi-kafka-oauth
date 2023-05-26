@@ -35,12 +35,12 @@ class BearerTokenWithJsonPayload implements BearerTokenWithPayload {
     }
 
     @Override
-    public synchronized JsonNode getPayload() {
+    public JsonNode getPayload() {
         return payload;
     }
 
     @Override
-    public synchronized void setPayload(JsonNode value) {
+    public void setPayload(JsonNode value) {
         payload = value;
     }
 

@@ -44,12 +44,12 @@ public class BasicTest extends Common {
     void createTopicAsClusterManager() throws Exception {
 
         Properties bobAdminProps = buildAdminConfigForAccount(BOB);
-        AdminClient admin = AdminClient.create(bobAdminProps);
-
-        //
-        // Create x_* topic
-        //
-        admin.createTopics(singletonList(new NewTopic(TOPIC_X, 1, (short) 1))).all().get();
+        try (AdminClient admin = AdminClient.create(bobAdminProps)) {
+            //
+            // Create x_* topic
+            //
+            admin.createTopics(singletonList(new NewTopic(TOPIC_X, 1, (short) 1))).all().get();
+        }
     }
 
     void testClusterManager() throws Exception {

@@ -729,11 +729,11 @@ As a result, the number of active tokens on the broker is generally less than th
 However, keep in mind that this is replicated across all Kafka brokers in the cluster, as clients maintain active sessions to multiple brokers.
 
 Keycloak Authorization Services requires an access token to provide the grants for the user session. In the context of Kafka authorization the permissions are tied to a specific user id / principal name.
-Multiple sessions and multiple access tokens for the same user will receive the same set of grants. For that reason the grants are cached in Keycloak authorizer per user, rather than per access token.
-The authorizer by default checks if the grants for the current user are available in grants cache, and if not they are fetched from Keycloak using the current sessions's access token and the current thread.
-If grants are available in the cache the existing grants are used. There is a background job that periodically refreshes the cached grants (see: `strimzi.authorization.grants.refresh.period.seconds`).
+Multiple sessions and multiple access tokens for the same user will receive the same set of grants. For that reason the grants are cached in Keycloak authorizer 'per user', rather than 'per access token'.
+The authorizer by default checks if the grants for the current user are available in grants cache. If grants are available, the existing grants are used. If not, they are fetched from Keycloak using the current session's access token and the current thread.
+Once the grants are cached they will stay in the cache for the duration of the session or until the access token used to fetch them expires. There is a background job that periodically refreshes the cached grants (see: `strimzi.authorization.grants.refresh.period.seconds`).
 The consequence of such a behavior is that the grants used for a new session may be out of sync with the state on the Keycloak server for up to the configured grants refresh period.
-Sometimes you may want (e.g. for the debug purposes for any changes in permissions to be reflected immediately) to fetch fresh grants for each newly established session, rather than use the already cached ones.
+Sometimes you may want (e.g. for the debug purposes, for any changes in permissions to be reflected immediately) to fetch fresh grants for each newly established session, rather than use the already cached ones.
 Note that this can noticeably increase the load from brokers to the Keycloak and aggravate any 'glitchiness' issues in communication with the Keycloak.
 To enable such behavior, set the following option to `false`.
 - `strimzi.authorization.reuse.grants` (e.g.: "false" - if set to false, then when a new session is established the grants will be fetched from Keycloak using that session's access token and cached to grants cache)

@@ -28,8 +28,8 @@ import java.io.IOException;
 import java.time.Duration;
 
 /**
- * Some tests rely on resources/simplelogger.properties to be configured to log into the file target/test.log.
- *
+ * Some tests rely on <code>resources/simplelogger.properties</code> to be configured to log to the file <code>target/test.log</code>.
+ * <p>
  * Log output is analyzed in the test to make sure the behaviour is as expected.
  */
 public class MockOAuthTests {

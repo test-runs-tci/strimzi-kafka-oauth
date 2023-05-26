@@ -8,11 +8,6 @@ import io.strimzi.kafka.oauth.common.TokenInfo;
 
 public class TestTokenFactory {
 
-    public static BearerTokenWithJsonPayload newTokenForUser(String userName) {
-        TokenInfo tokenInfo = new TokenInfo("dummy.token.", null, "user1", null, System.currentTimeMillis() - 10_000, System.currentTimeMillis() + 3600_000);
-        return new BearerTokenWithJsonPayload(tokenInfo);
-    }
-
     public static BearerTokenWithJsonPayload newTokenForUser(TokenInfo tokenInfo) {
         return new BearerTokenWithJsonPayload(tokenInfo);
     }

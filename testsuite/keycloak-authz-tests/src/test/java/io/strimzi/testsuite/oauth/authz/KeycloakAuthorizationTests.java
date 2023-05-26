@@ -19,10 +19,10 @@ import java.time.Duration;
 
 /**
  * Tests for OAuth authentication using Keycloak + Keycloak Authorization Services based authorization
- *
+ * <p>
  * This test assumes there are multiple listeners configured with OAUTHBEARER or PLAIN support, but each configured differently
  * - configured with different options, or different realm.
- *
+ * <p>
  * There is KeycloakRBACAuthorizer configured on the Kafka broker.
  */
 public class KeycloakAuthorizationTests {
@@ -37,10 +37,6 @@ public class KeycloakAuthorizationTests {
                     // ensure ACLs for user 'alice' have been added
                     .waitingFor("kafka", Wait.forLogMessage(".*User:alice has ALLOW permission for operations: IDEMPOTENT_WRITE.*", 1)
                             .withStartupTimeout(Duration.ofSeconds(210)));
-                    // ensure one grants fetch request to 'keycloak' has been performed by authorizer
-                    // MetricsTest expects that
-                    //.waitingFor("kafka", Wait.forLogMessage(".*Done refreshing grants .*", 1)
-                    //        .withStartupTimeout(Duration.ofSeconds(210)));
 
     @Rule
     public TestRule logCollector = new TestContainersLogCollector(environment);

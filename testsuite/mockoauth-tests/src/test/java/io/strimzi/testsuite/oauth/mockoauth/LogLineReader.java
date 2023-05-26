@@ -9,9 +9,12 @@ import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.List;
 
+/**
+ * A very inefficient but simple and good-enough-for-tests implementation of reading a log file and serving content as lines starting from some line number
+ */
 public class LogLineReader {
 
-    private String logPath;
+    private final String logPath;
     private int logLineOffset = 0;
 
     LogLineReader(String logPath) {

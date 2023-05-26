@@ -49,11 +49,6 @@ public class KeycloakRaftAuthorizationTests {
                     //   Moved into test code: waitForACLs()
                     //   Logging has changed, and it would require very verbose logging to possibly detect this from kafka logs
 
-                    // ensure a grants fetch request to 'keycloak' has been performed by authorizer's grants refresh job
-                    //   In KRaft mode the inter-broker connection doesn't seem to happen, so there are no OAuth authenticated sessions before starting the tests
-                    //.waitingFor("kafka", Wait.forLogMessage(".*after: \\{\\}.*", 1)
-                    //        .withStartupTimeout(Duration.ofSeconds(210)));
-
     @Rule
     public TestRule logCollector = new TestContainersLogCollector(environment);
 
@@ -122,23 +117,24 @@ public class KeycloakRaftAuthorizationTests {
     private void waitForACLs() throws Exception {
 
         // Create admin client using user `admin:admin-password` over PLAIN listener (port 9100)
-        AdminClient adminClient = Common.buildAdminClientForPlain(PLAIN_LISTENER, "admin");
+        try (AdminClient adminClient = Common.buildAdminClientForPlain(PLAIN_LISTENER, "admin")) {
 
-        TestUtil.waitForCondition(() -> {
-            try {
-                Collection<AclBinding> result = adminClient.describeAcls(new AclBindingFilter(ResourcePatternFilter.ANY,
-                        new AccessControlEntryFilter("User:alice", null, AclOperation.IDEMPOTENT_WRITE, AclPermissionType.ALLOW))).values().get();
-                for (AclBinding acl : result) {
-                    if (AclOperation.IDEMPOTENT_WRITE.equals(acl.entry().operation())) {
-                        return true;
+            TestUtil.waitForCondition(() -> {
+                try {
+                    Collection<AclBinding> result = adminClient.describeAcls(new AclBindingFilter(ResourcePatternFilter.ANY,
+                            new AccessControlEntryFilter("User:alice", null, AclOperation.IDEMPOTENT_WRITE, AclPermissionType.ALLOW))).values().get();
+                    for (AclBinding acl : result) {
+                        if (AclOperation.IDEMPOTENT_WRITE.equals(acl.entry().operation())) {
+                            return true;
+                        }
                     }
-                }
-                return false;
+                    return false;
 
-            } catch (Exception e) {
-                throw new RuntimeException("ACLs for User:alice could not be retrieved: ", e);
-            }
-        }, 500, 210);
+                } catch (Exception e) {
+                    throw new RuntimeException("ACLs for User:alice could not be retrieved: ", e);
+                }
+            }, 500, 210);
+        }
     }
 
     private void logStart(String msg) {

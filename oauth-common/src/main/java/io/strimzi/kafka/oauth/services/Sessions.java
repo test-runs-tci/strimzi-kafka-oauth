@@ -24,6 +24,7 @@ import static io.strimzi.kafka.oauth.common.LogUtil.mask;
 /**
  * Sessions entries should automatically get cleared as KafkaPrincipals for the sessions get garbage collected by JVM.
  * The size of `activeSessions` at any moment in time should be about the number of currently active sessions.
+ * They may also get removed by broker-side plugins like custom authorizers when it is determined that the token has expired.
  */
 public class Sessions {
 

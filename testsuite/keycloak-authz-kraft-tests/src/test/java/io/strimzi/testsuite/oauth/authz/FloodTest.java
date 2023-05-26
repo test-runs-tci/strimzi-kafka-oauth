@@ -134,10 +134,10 @@ public class FloodTest extends Common {
 
     private void sendSingleMessage(String clientId, String secret, String topic) throws ExecutionException, InterruptedException {
         Properties props = buildProducerConfig(kafkaBootstrap, usePlain, clientId, secret);
-        KafkaProducer<String, String> producer = new KafkaProducer<>(props);
-
-        producer.send(new ProducerRecord<>(topic, "Message 0"))
-                .get();
+        try (KafkaProducer<String, String> producer = new KafkaProducer<>(props)) {
+            producer.send(new ProducerRecord<>(topic, "Message 0"))
+                    .get();
+        }
     }
 
     private String groupForConsumer(int index) {

@@ -71,6 +71,11 @@ import static io.strimzi.kafka.oauth.common.OAuthAuthenticator.urlencode;
  *     principal.builder.class=io.strimzi.kafka.oauth.server.OAuthKafkaPrincipalBuilder
  * </pre>
  * <p>
+ * This authorizer only supports Kafka running in 'zookeeper' mode. It does not support 'KRaft' mode.
+ * There is a {@link KeycloakAuthorizer} class that autodetects the environment and works both in 'KRaft' and 'zookeeper' mode,
+ * that should be used instead of this class.
+ * </p>
+ * <p>
  * There is additional configuration that needs to be specified in order for this authorizer to work.
  * </p>
  * <blockquote>
@@ -96,16 +101,22 @@ import static io.strimzi.kafka.oauth.common.OAuthAuthenticator.urlencode;
  * </p>
  * <ul>
  * <li><em>strimzi.authorization.kafka.cluster.name</em> The name of this cluster, used to target permissions to specific Kafka cluster, making it possible to manage multiple clusters within the same Keycloak realm.<br>
- * The default value is <em>kafka-cluster</em>
+ * The default value is <em>kafka-cluster</em>.
  * </li>
  * <li><em>strimzi.authorization.delegate.to.kafka.acl</em> Whether authorization decision should be delegated to ACLAuthorizer if DENIED by Keycloak Authorization Services policies.<br>
- * The default value is <em>false</em>
+ * The default value is <em>false</em>.
  * </li>
  * <li><em>strimzi.authorization.grants.refresh.period.seconds</em> The time interval for refreshing the grants of the active sessions. The scheduled job iterates over active sessions and fetches a fresh list of grants for each.<br>
- * The default value is <em>60</em>
+ * The default value is <em>60</em>.
  * </li>
- * <li><em>strimzi.authorization.grants.refresh.pool.size</em> The number of threads to fetch grants from token endpoint (in parallel).<br>
- * The default value is <em>5</em>
+ * <li><em>strimzi.authorization.grants.refresh.pool.size</em> The number of threads used to fetch grants from token endpoint (in parallel).<br>
+ * The default value is <em>5</em>.
+ * </li>
+ * <li><em>strimzi.authorization.grants.max.idle.time.seconds</em> The time limit in seconds of a cached grant not being accessed. After that time it will be evicted from grants cache to prevent possibly stale remnant sessions from consuming memory.<br>
+ * The default value is <em>300</em>.
+ * </li>
+ * <li><em>strimzi.authorization.grants.gc.period.seconds</em> A time in seconds between two consecutive runs of the background job that evicts idle or expired grants from cache.<br/>
+ * The default value is <em>300</em>.
  * </li>
  * <li><em>strimzi.authorization.http.retries</em> The number of times to retry fetch grants from token endpoint.<br>
  * The retry is immediate without pausing due to the authorize() method holding up the Kafka worker thread. The default is <em>0</em> i.e. no retries.
@@ -272,17 +283,17 @@ public class KeycloakRBACAuthorizer implements Authorizer {
     }
 
     private int configureGrantsMaxIdleTimeSeconds(AuthzConfig config) {
-        int grantsMaxIdleTimeSeconds = config.getValueAsInt(AuthzConfig.STRIMZI_AUTHORIZATION_GRANTS_MAX_IDLE_TIME_SECONDS, 60);
+        int grantsMaxIdleTimeSeconds = config.getValueAsInt(AuthzConfig.STRIMZI_AUTHORIZATION_GRANTS_MAX_IDLE_TIME_SECONDS, 300);
         if (grantsMaxIdleTimeSeconds <= 0) {
-            log.warn("'strimzi.authorization.grants.max.idle.time.seconds' set to invalid value: {} (should be a positive number), using the default value: 60 seconds", grantsMaxIdleTimeSeconds);
+            log.warn("'strimzi.authorization.grants.max.idle.time.seconds' set to invalid value: {} (should be a positive number), using the default value: 300 seconds", grantsMaxIdleTimeSeconds);
         }
         return grantsMaxIdleTimeSeconds;
     }
 
     private int configureGcPeriodSeconds(AuthzConfig config) {
-        int gcPeriodSeconds = config.getValueAsInt(AuthzConfig.STRIMZI_AUTHORIZATION_GC_PERIOD_SECONDS, 300);
+        int gcPeriodSeconds = config.getValueAsInt(AuthzConfig.STRIMZI_AUTHORIZATION_GRANTS_GC_PERIOD_SECONDS, 300);
         if (gcPeriodSeconds <= 0) {
-            log.warn("'strimzi.authorization.gc.period.seconds' set to invalid value: {}, using the default value: 300 seconds", gcPeriodSeconds);
+            log.warn("'strimzi.authorization.grants.gc.period.seconds' set to invalid value: {}, using the default value: 300 seconds", gcPeriodSeconds);
             gcPeriodSeconds = 300;
         }
         return gcPeriodSeconds;
@@ -391,6 +402,7 @@ public class KeycloakRBACAuthorizer implements Authorizer {
             AuthzConfig.STRIMZI_AUTHORIZATION_GRANTS_REFRESH_PERIOD_SECONDS,
             AuthzConfig.STRIMZI_AUTHORIZATION_GRANTS_REFRESH_POOL_SIZE,
             AuthzConfig.STRIMZI_AUTHORIZATION_GRANTS_MAX_IDLE_TIME_SECONDS,
+            AuthzConfig.STRIMZI_AUTHORIZATION_GRANTS_GC_PERIOD_SECONDS,
             AuthzConfig.STRIMZI_AUTHORIZATION_HTTP_RETRIES,
             AuthzConfig.STRIMZI_AUTHORIZATION_REUSE_GRANTS,
             AuthzConfig.STRIMZI_AUTHORIZATION_DELEGATE_TO_KAFKA_ACL,
@@ -416,8 +428,7 @@ public class KeycloakRBACAuthorizer implements Authorizer {
             AuthzConfig.STRIMZI_AUTHORIZATION_READ_TIMEOUT_SECONDS,
             Config.OAUTH_READ_TIMEOUT_SECONDS,
             AuthzConfig.STRIMZI_AUTHORIZATION_ENABLE_METRICS,
-            Config.OAUTH_ENABLE_METRICS,
-            AuthzConfig.STRIMZI_AUTHORIZATION_GC_PERIOD_SECONDS
+            Config.OAUTH_ENABLE_METRICS
         };
 
         // Copy over the keys

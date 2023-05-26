@@ -18,9 +18,11 @@ import org.slf4j.LoggerFactory;
 import java.util.Map;
 
 /**
- * The Keycloak authorizer implementation that supports KRaft mode and delegates to
- * <code>org.apache.kafka.metadata.authorizer.StandardAuthorizer</code> if <code>strimzi.authorization.delegate.to.kafka.acl</code>
- * is set to <code>true</code>.
+ * An authorizer that grants access based on security policies managed in Keycloak Authorization Services.
+ * This is a drop-in replacement for <code>KeycloakRBACAuthorizer</code> with functionality mostly inherited from there.
+ * <p>
+ * This implementation supports KRaft mode and delegates to <code>org.apache.kafka.metadata.authorizer.StandardAuthorizer</code>
+ * if <code>strimzi.authorization.delegate.to.kafka.acl</code> is set to <code>true</code>.
  * <p>
  * This authorizer auto-detects whether the broker runs in KRaft mode or not based on the presence and value of <code>process.roles</code> config option.
  * <p>
@@ -33,7 +35,7 @@ import java.util.Map;
  *     authorizer.class.name=io.strimzi.kafka.oauth.server.authorizer.KeycloakAuthorizer
  *     principal.builder.class=io.strimzi.kafka.oauth.server.OAuthKafkaPrincipalBuilder
  * </pre>
- * The functionality of this authorizer is mostly inherited from <code>KeycloakRBACAuthorizer</code>.
+ *
  * For more configuration options see README.md and {@link io.strimzi.kafka.oauth.server.authorizer.KeycloakRBACAuthorizer}.
  */
 public class KeycloakAuthorizer extends KeycloakRBACAuthorizer implements ClusterMetadataAuthorizer {
@@ -55,7 +57,7 @@ public class KeycloakAuthorizer extends KeycloakRBACAuthorizer implements Cluste
         return superConfig;
     }
 
-    boolean detectKRaft(Map<String, ?> configs) {
+    private boolean detectKRaft(Map<String, ?> configs) {
         // auto-detect KRaft mode
         Object prop = configs.get("process.roles");
         String processRoles = prop != null ? String.valueOf(prop) : null;

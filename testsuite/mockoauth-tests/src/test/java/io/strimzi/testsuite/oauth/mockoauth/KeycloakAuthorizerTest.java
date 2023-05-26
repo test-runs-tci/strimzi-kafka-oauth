@@ -44,7 +44,7 @@ import javax.security.auth.login.AppConfigurationEntry;
 import java.io.IOException;
 import java.net.URI;
 import java.util.ArrayList;
-import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -150,11 +150,12 @@ public class KeycloakAuthorizerTest {
     }
 
     /**
-     * This test configures a KeycloakAuthorization with TODO
+     * This test makes sure the concurrent threads needing grants for the same user that is not yet available in grants cache
+     * result in a single request to the Keycloak server, with second thread waiting for result and reusing it.
      *
-     * @throws IOException
-     * @throws ExecutionException
-     * @throws InterruptedException
+     * @throws IOException If an exception occurs during I/O operation
+     * @throws ExecutionException If an exception occurs during job execution
+     * @throws InterruptedException If test is interrupted
      */
     void doConcurrentGrantsRefreshTest() throws IOException, ExecutionException, InterruptedException {
         logStart("KeycloakAuthorizerTest :: Concurrent Grants Refresh Tests");
@@ -172,13 +173,11 @@ public class KeycloakAuthorizerTest {
 
         // one test uses KeycloakAuthorizer not configured with 'strimzi.authorization.reuse.grants'
         HashMap<String, String> props = configureAuthorizer(CLIENT_SRV, CLIENT_SRV_SECRET);
-        boolean withReuse = true;
-        runConcurrentFetchGrantsTest(props, withReuse, userOne, userOnePass);
+        runConcurrentFetchGrantsTest(props, true, userOne, userOnePass);
 
         // another test uses KeycloakAuthorizer configured with it set to 'false'
         props.put("strimzi.authorization.reuse.grants", "false");
-        withReuse = false;
-        runConcurrentFetchGrantsTest(props, withReuse, userOne, userOnePass);
+        runConcurrentFetchGrantsTest(props, false, userOne, userOnePass);
     }
 
     private void runConcurrentFetchGrantsTest(HashMap<String, String> props, boolean withReuse, String user, String userPass) throws IOException, ExecutionException, InterruptedException {
@@ -336,7 +335,7 @@ public class KeycloakAuthorizerTest {
         Assert.assertEquals("superUsers: []", 1, countLogForRegex(lines, "superUsers: \\[\\]"));
         Assert.assertEquals("grantsRefreshPeriodSeconds: 60", 1, countLogForRegex(lines, "grantsRefreshPeriodSeconds: 60"));
         Assert.assertEquals("grantsRefreshPoolSize: 5", 1, countLogForRegex(lines, "grantsRefreshPoolSize: 5"));
-        Assert.assertEquals("grantsMaxIdleTimeSeconds: 60", 1, countLogForRegex(lines, "grantsMaxIdleTimeSeconds: 60"));
+        Assert.assertEquals("grantsMaxIdleTimeSeconds: 300", 1, countLogForRegex(lines, "grantsMaxIdleTimeSeconds: 300"));
         Assert.assertEquals("httpRetries: 0", 1, countLogForRegex(lines, "httpRetries: 0"));
         Assert.assertEquals("reuseGrants: true", 1, countLogForRegex(lines, "reuseGrants: true"));
         Assert.assertEquals("connectTimeoutSeconds: 60", 1, countLogForRegex(lines, "connectTimeoutSeconds: 60"));
@@ -356,7 +355,7 @@ public class KeycloakAuthorizerTest {
         config.put(AuthzConfig.STRIMZI_AUTHORIZATION_CONNECT_TIMEOUT_SECONDS, "15");
         config.put(AuthzConfig.STRIMZI_AUTHORIZATION_READ_TIMEOUT_SECONDS, "15");
         config.put(AuthzConfig.STRIMZI_AUTHORIZATION_ENABLE_METRICS, "true");
-        config.put(AuthzConfig.STRIMZI_AUTHORIZATION_GC_PERIOD_SECONDS, "60");
+        config.put(AuthzConfig.STRIMZI_AUTHORIZATION_GRANTS_GC_PERIOD_SECONDS, "60");
 
         try (KeycloakAuthorizer authorizer = new KeycloakAuthorizer()) {
             authorizer.configure(config);
@@ -378,7 +377,7 @@ public class KeycloakAuthorizerTest {
 
 
         // test gcPeriodSeconds set to 0
-        config.put(AuthzConfig.STRIMZI_AUTHORIZATION_GC_PERIOD_SECONDS, "0");
+        config.put(AuthzConfig.STRIMZI_AUTHORIZATION_GRANTS_GC_PERIOD_SECONDS, "0");
 
         try (KeycloakAuthorizer authorizer = new KeycloakAuthorizer()) {
             authorizer.configure(config);
@@ -386,7 +385,7 @@ public class KeycloakAuthorizerTest {
 
         lines = logReader.readNext();
 
-        Assert.assertEquals("gcPeriodSeconds invalid value: 0", 1, countLogForRegex(lines, "'strimzi.authorization.gc.period.seconds' set to invalid value: 0, using the default value: 300 seconds"));
+        Assert.assertEquals("gcPeriodSeconds invalid value: 0", 1, countLogForRegex(lines, "'strimzi.authorization.grants.gc.period.seconds' set to invalid value: 0, using the default value: 300 seconds"));
         Assert.assertEquals("gcPeriodSeconds: 300", 1, countLogForRegex(lines, "gcPeriodSeconds: 300"));
     }
 
@@ -406,7 +405,7 @@ public class KeycloakAuthorizerTest {
         // Set gcPeriodSeconds to 3 seconds
         HashMap<String, String> props = configureAuthorizer(CLIENT_SRV, CLIENT_SRV_SECRET);
         props.put(AuthzConfig.STRIMZI_AUTHORIZATION_GRANTS_REFRESH_PERIOD_SECONDS, "5");
-        props.put(AuthzConfig.STRIMZI_AUTHORIZATION_GC_PERIOD_SECONDS, "3");
+        props.put(AuthzConfig.STRIMZI_AUTHORIZATION_GRANTS_GC_PERIOD_SECONDS, "3");
 
         try (KeycloakAuthorizer authorizer = new KeycloakAuthorizer()) {
             authorizer.configure(props);
@@ -530,7 +529,7 @@ public class KeycloakAuthorizerTest {
         jaasProps.put(ServerConfig.OAUTH_CHECK_ACCESS_TOKEN_TYPE, "false");
 
         Map<String, String> configs = new HashMap<>();
-        authHandler.configure(configs, "OAUTHBEARER", Arrays.asList(new AppConfigurationEntry("server", AppConfigurationEntry.LoginModuleControlFlag.REQUIRED, jaasProps)));
+        authHandler.configure(configs, "OAUTHBEARER", Collections.singletonList(new AppConfigurationEntry("server", AppConfigurationEntry.LoginModuleControlFlag.REQUIRED, jaasProps)));
         return authHandler;
     }
 
@@ -741,6 +740,8 @@ public class KeycloakAuthorizerTest {
         System.out.println();
         System.out.println("========    "  + msg);
         System.out.println();
+
+        // Log to file as well for better readability
         LOG.info("========    " + msg);
     }
 }

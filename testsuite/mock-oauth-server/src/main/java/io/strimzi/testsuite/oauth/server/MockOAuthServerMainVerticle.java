@@ -147,7 +147,7 @@ public class MockOAuthServerMainVerticle extends AbstractVerticle {
 
     private RSAKey sigKey;
 
-    private Map<Endpoint, AtomicCoin> coins = new ConcurrentHashMap<>();
+    private final Map<Endpoint, AtomicCoin> coins = new ConcurrentHashMap<>();
 
     public void start() {
 

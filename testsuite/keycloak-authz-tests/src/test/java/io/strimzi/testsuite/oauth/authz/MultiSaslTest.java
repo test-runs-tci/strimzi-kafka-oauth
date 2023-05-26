@@ -222,9 +222,9 @@ public class MultiSaslTest {
 
     private static void produceToTopic(String topic, Properties config) throws Exception {
 
-        Producer<String, String> producer = new KafkaProducer<>(config);
-
-        producer.send(new ProducerRecord<>(topic, "The Message")).get();
-        log.debug("Produced The Message");
+        try (Producer<String, String> producer = new KafkaProducer<>(config)) {
+            producer.send(new ProducerRecord<>(topic, "The Message")).get();
+            log.debug("Produced The Message");
+        }
     }
 }

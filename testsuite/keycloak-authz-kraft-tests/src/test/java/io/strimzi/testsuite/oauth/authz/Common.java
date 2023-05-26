@@ -361,9 +361,9 @@ public class Common {
 
     void cleanup() {
         Properties bobAdminProps = buildAdminConfigForAccount(BOB);
-        AdminClient admin = AdminClient.create(bobAdminProps);
-
-        admin.deleteTopics(Arrays.asList(TOPIC_A, TOPIC_B, TOPIC_X, "non-existing-topic"));
-        admin.deleteConsumerGroups(Arrays.asList(groupFor(TOPIC_A), groupFor(TOPIC_B), groupFor(TOPIC_X), groupFor("non-existing-topic")));
+        try (AdminClient admin = AdminClient.create(bobAdminProps)) {
+            admin.deleteTopics(Arrays.asList(TOPIC_A, TOPIC_B, TOPIC_X, "non-existing-topic"));
+            admin.deleteConsumerGroups(Arrays.asList(groupFor(TOPIC_A), groupFor(TOPIC_B), groupFor(TOPIC_X), groupFor("non-existing-topic")));
+        }
     }
 }

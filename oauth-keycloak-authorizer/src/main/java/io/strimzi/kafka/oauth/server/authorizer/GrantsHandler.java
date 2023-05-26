@@ -33,6 +33,9 @@ import java.util.function.Function;
 
 import static io.strimzi.kafka.oauth.common.LogUtil.mask;
 
+/**
+ * The class that handles grants cache and services to maintain it
+ */
 @SuppressFBWarnings("THROWS_METHOD_THROWS_CLAUSE_BASIC_EXCEPTION")
 class GrantsHandler implements Closeable {
 
@@ -56,12 +59,15 @@ class GrantsHandler implements Closeable {
 
     private long lastGcRunTimeMillis;
 
+    /**
+     * Cleanup background threads.
+     */
     @Override
     public void close() {
         try {
             workerPool.shutdownNow();
         } catch (Throwable t) {
-            log.error("[IGNORED] Failed to normally shutdown worker pool: ", t);
+            log.error("[IGNORED] Failed to normally shutdown grants refresh worker pool: ", t);
         }
         try {
             gcWorker.shutdownNow();
@@ -70,6 +76,9 @@ class GrantsHandler implements Closeable {
         }
     }
 
+    /**
+     * A cached record with grants JSON, access token used to retrieve grants, token expiry info and last usage info.
+     */
     static class Info {
         private volatile String accessToken;
         private volatile JsonNode grants;
@@ -82,7 +91,7 @@ class GrantsHandler implements Closeable {
             this.lastUsed = System.currentTimeMillis();
         }
 
-        synchronized void updateTokenIfNewer(BearerTokenWithPayload token) {
+        synchronized void updateTokenIfExpiresLater(BearerTokenWithPayload token) {
             lastUsed = System.currentTimeMillis();
             if (token.lifetimeMs() > expiresAt) {
                 accessToken = token.value();
@@ -169,6 +178,16 @@ class GrantsHandler implements Closeable {
         }
     }
 
+    /**
+     * Create a new GrantsHandler instance
+     *
+     * @param grantsRefreshPeriodSeconds Number of seconds between two consecutive grants refresh job runs
+     * @param grantsRefreshPoolSize The number of threads over which to spread a grants refresh job run
+     * @param grantsMaxIdleTimeSeconds An idle time in seconds during which the cached grant wasn't accesses by any session so is deemed unneeded, and can be garbage collected
+     * @param httpGrantsProvider A function with grant fetching logic
+     * @param httpRetries A maximum number of repeated attempts if a grants request to the token endpoint fails in unexpected way
+     * @param gcPeriodSeconds Number of seconds between two cosecutive grants garbage collection job runs
+     */
     GrantsHandler(int grantsRefreshPeriodSeconds, int grantsRefreshPoolSize, int grantsMaxIdleTimeSeconds, Function<String, JsonNode> httpGrantsProvider, int httpRetries, int gcPeriodSeconds) {
         this.authorizationGrantsProvider = httpGrantsProvider;
         this.httpRetries = httpRetries;
@@ -194,12 +213,21 @@ class GrantsHandler implements Closeable {
         gcWorker.scheduleAtFixedRate(this::gcGrantsCacheRunnable, gcPeriodSeconds, gcPeriodSeconds, TimeUnit.SECONDS);
     }
 
+    /**
+     * Schedule a periodic grants refresh job
+     *
+     * @param threadFactory ThreadFactory to use for creating a service thread
+     * @param refreshSeconds Run period for the periodic job
+     */
     private void setupRefreshGrantsJob(ThreadFactory threadFactory, int refreshSeconds) {
         // Set up periodic timer to fetch grants for active sessions every refresh seconds
         ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor(threadFactory);
         scheduler.scheduleAtFixedRate(this::performRefreshGrantsRun, refreshSeconds, refreshSeconds, TimeUnit.SECONDS);
     }
 
+    /**
+     * The function to call as a periodic job
+     */
     private void gcGrantsCacheRunnable() {
         long timePassedSinceGc = System.currentTimeMillis() - lastGcRunTimeMillis;
         if (timePassedSinceGc < gcPeriodMillis - 1000) { // give or take one second
@@ -210,6 +238,9 @@ class GrantsHandler implements Closeable {
         gcGrantsCache();
     }
 
+    /**
+     * Perform one garbage collection run
+     */
     private void gcGrantsCache() {
         HashSet<String> userIds = new HashSet<>(Services.getInstance().getSessions().map(BearerTokenWithPayload::principalName));
         log.trace("Grants gc: active users: {}", userIds);
@@ -224,6 +255,14 @@ class GrantsHandler implements Closeable {
         log.debug("Grants gc: active users count: {}, grantsCache size before: {}, grantsCache size after: {}", userIds.size(), beforeSize, afterSize);
     }
 
+    /**
+     * Fetch grants for the user using the access token contained in the passed grantsInfo,
+     * and save the result into the grantsInfo object.
+     *
+     * @param userId User id
+     * @param grantsInfo Grants info object representing the cached grants entry for the user
+     * @return Obtained grants
+     */
     private JsonNode fetchAndSaveGrants(String userId, Info grantsInfo) {
         // If no grants found, fetch grants from server
         JsonNode grants = null;
@@ -288,6 +327,9 @@ class GrantsHandler implements Closeable {
         } while (true);
     }
 
+    /**
+     * Perform a single grants refresh run
+     */
     private void performRefreshGrantsRun() {
         try {
             log.debug("Refreshing authorization grants ...");
@@ -360,6 +402,12 @@ class GrantsHandler implements Closeable {
         }
     }
 
+    /**
+     * Remove grants for the given user from the cache if the access token for it is expired or there was no access for the
+     * maximum idle time.
+     *
+     * @param userId User id
+     */
     private void removeUserFromCacheIfExpiredOrIdle(String userId) {
         synchronized (grantsCache) {
             Info info = grantsCache.get(userId);
@@ -374,6 +422,12 @@ class GrantsHandler implements Closeable {
         }
     }
 
+    /**
+     * Lookup the grants cache given the token
+     *
+     * @param token A token object
+     * @return Grants info object representing a grants cache entry
+     */
     Info getGrantsInfoFromCache(BearerTokenWithPayload token) {
         Info grantsInfo;
 
@@ -382,11 +436,21 @@ class GrantsHandler implements Closeable {
                 k -> new Info(token.value(), token.lifetimeMs()));
         }
 
-        // Always keep the latest access token in the cache
-        grantsInfo.updateTokenIfNewer(token);
+        // Always keep the longest lasting access token in the cache
+        grantsInfo.updateTokenIfExpiresLater(token);
         return grantsInfo;
     }
 
+    /**
+     * This method ensures that for any particular user id there is a single grants fetching operation in progress at any one time.
+     * <p>
+     * If for the current user there is a grants fetch operation in progress the thread simply waits for the results of that operation.
+     * This is only relevant if there are no grants for the user available in grants cache.
+     *
+     * @param userId User id
+     * @param grantsInfo Grants info object representing the cached grants entry for the user
+     * @return Grants JSON
+     */
     JsonNode fetchGrantsForUserOrWaitForDelivery(String userId, Info grantsInfo) {
         // Fetch authorization grants
         Semaphores.SemaphoreResult<JsonNode> semaphore = semaphores.acquireSemaphore(userId);
