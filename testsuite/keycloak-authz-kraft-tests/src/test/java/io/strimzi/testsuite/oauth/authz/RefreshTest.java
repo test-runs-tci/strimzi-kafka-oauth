@@ -219,6 +219,7 @@ public class RefreshTest extends BasicTest {
         Producer<String, String> teamAProducer = getProducer(TEAM_A_CLIENT);
         //
         // team-a-client should now succeed to produce to b_* topic
+        //
         produce(teamAProducer, TOPIC_B);
 
         //

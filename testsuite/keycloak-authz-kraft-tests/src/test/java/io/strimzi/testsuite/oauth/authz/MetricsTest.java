@@ -35,7 +35,7 @@ public class MetricsTest {
         Assert.assertTrue("strimzi_oauth_authentication_requests_totaltimems for client-auth > 0.0", value.doubleValue() > 0.0);
     }
 
-    public static void doTest2() throws Exception {
+    public static void doTestValidationAndAuthorization() throws Exception {
 
         final String tokenPath = "/auth/realms/" + REALM + "/protocol/openid-connect/token";
 

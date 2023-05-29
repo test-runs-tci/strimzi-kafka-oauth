@@ -87,7 +87,7 @@ public class KeycloakRaftAuthorizationTests {
             new BasicTest(INTROSPECT_LISTENER, false).doTest();
 
             logStart("KeycloakRaftAuthorizationTest :: MetricsTest (part 2)");
-            MetricsTest.doTest2();
+            MetricsTest.doTestValidationAndAuthorization();
 
             logStart("KeycloakRaftAuthorizationTest :: OAuthOverPlain + JwtValidationAuthzTest");
             new OAuthOverPlainTest(JWTPLAIN_LISTENER, true).doTest();
