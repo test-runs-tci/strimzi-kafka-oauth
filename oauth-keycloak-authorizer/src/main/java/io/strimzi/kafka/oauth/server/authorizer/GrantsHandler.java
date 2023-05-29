@@ -66,11 +66,13 @@ class GrantsHandler implements Closeable {
     public void close() {
         try {
             workerPool.shutdownNow();
+            workerPool.awaitTermination(10, TimeUnit.SECONDS);
         } catch (Throwable t) {
             log.error("[IGNORED] Failed to normally shutdown grants refresh worker pool: ", t);
         }
         try {
             gcWorker.shutdownNow();
+            gcWorker.awaitTermination(10, TimeUnit.SECONDS);
         } catch (Throwable t) {
             log.error("[IGNORED] Failed to normally shutdown garbage collector worker: ", t);
         }

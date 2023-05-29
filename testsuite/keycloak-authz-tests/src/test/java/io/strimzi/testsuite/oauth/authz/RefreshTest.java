@@ -17,8 +17,8 @@ import java.util.Map;
 
 public class RefreshTest extends BasicTest {
 
-    RefreshTest(String kafkaBootstrap, boolean oauthOverPlain) {
-        super(kafkaBootstrap, oauthOverPlain);
+    RefreshTest(String kafkaContainer, String kafkaBootstrap, boolean oauthOverPlain) {
+        super(kafkaContainer, kafkaBootstrap, oauthOverPlain);
     }
 
     public void doTest() throws Exception {

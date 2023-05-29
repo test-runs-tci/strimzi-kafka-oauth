@@ -108,6 +108,48 @@ public class KeycloakAuthorizerTest {
         doHttpRetriesTest();
         doConcurrentGrantsRefreshTest();
         doGrantsGCTests();
+        doGrants403Test();
+    }
+
+    private void doGrants403Test() throws IOException {
+
+        logStart("KeycloakAuthorizerTest :: Grants 403 (no policies for user) Test");
+
+        // Add a 403 test
+        changeAuthServerMode("grants", "MODE_403");
+
+        LogLineReader logReader = new LogLineReader(LOG_PATH);
+        List<String> lines = logReader.readNext();
+
+        HashMap<String, String> props = configureAuthorizer(CLIENT_SRV, CLIENT_SRV_SECRET);
+        props.put(AuthzConfig.STRIMZI_AUTHORIZATION_TOKEN_ENDPOINT_URI, "https://mockoauth:8090/grants");
+
+        try (KeycloakAuthorizer authorizer = new KeycloakAuthorizer()) {
+            authorizer.configure(props);
+
+            TokenInfo tokenInfo = login(FAILING_TOKEN_ENDPOINT, USER_ALICE, USER_ALICE_PASS, 1);
+            KafkaPrincipal principal = new OAuthKafkaPrincipal(KafkaPrincipal.USER_TYPE, USER_ALICE, new Common.MockBearerTokenWithPayload(tokenInfo));
+            AuthorizableRequestContext ctx = newAuthorizableRequestContext(principal);
+
+            List<Action> actions = new ArrayList<>();
+            actions.add(new Action(
+                    AclOperation.CREATE,
+                    new ResourcePattern(ResourceType.TOPIC, "my-topic", PatternType.LITERAL),
+                    1, true, true));
+
+            List<AuthorizationResult> result = authorizer.authorize(ctx, actions);
+            Assert.assertNotNull("Authorizer has to return non-null", result);
+            Assert.assertEquals("Authorizer has to return as many results as it received inputs", result.size(), actions.size());
+            Assert.assertEquals("Authorizer should return DENIED", AuthorizationResult.DENIED, result.get(0));
+
+            lines = logReader.readNext();
+
+            Assert.assertTrue("Saving non-null grants", checkLogForRegex(lines, "Saving non-null grants"));
+            Assert.assertTrue("grants for user: {}", checkLogForRegex(lines, "grants for user .*: \\{\\}"));
+
+        } finally {
+            changeAuthServerMode("grants", "MODE_200");
+        }
     }
 
     void doHttpRetriesTest() throws IOException {
@@ -274,7 +316,6 @@ public class KeycloakAuthorizerTest {
                 Assert.assertEquals("x-topic-2 DENIED", AuthorizationResult.DENIED, result.get(0));
             } finally {
                 executorService.shutdown();
-                authorizer.close();
             }
         }
     }

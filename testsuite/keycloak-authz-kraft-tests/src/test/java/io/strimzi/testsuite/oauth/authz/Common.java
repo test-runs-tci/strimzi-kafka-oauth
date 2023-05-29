@@ -45,6 +45,7 @@ public class Common {
     static final String TEAM_A_CLIENT = "team-a-client";
     static final String TEAM_B_CLIENT = "team-b-client";
     static final String BOB = "bob";
+    static final String ZERO = "zero";
 
     static final String TOPIC_A = "a_messages";
     static final String TOPIC_B = "b_messages";
@@ -77,6 +78,8 @@ public class Common {
                 TEAM_B_CLIENT, TEAM_B_CLIENT + "-secret", true, null, null).token());
         tokens.put(BOB, loginWithUsernamePassword(URI.create(TOKEN_ENDPOINT_URI),
                 BOB, BOB + "-password", "kafka-cli"));
+        tokens.put(ZERO, loginWithUsernamePassword(URI.create(TOKEN_ENDPOINT_URI),
+                ZERO, ZERO + "-password", "kafka-cli"));
         return tokens;
     }
 

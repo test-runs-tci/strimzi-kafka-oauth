@@ -525,7 +525,10 @@ public class KeycloakRBACAuthorizer implements Authorizer {
                 return Collections.nCopies(actions.size(), AuthorizationResult.DENIED);
             }
 
-            //grants = token.getPayload();
+            if (grantsHandler == null) {
+                throw new IllegalStateException("Authorizer has not been configured - configure() not called");
+            }
+
             GrantsHandler.Info grantsInfo = grantsHandler.getGrantsInfoFromCache(token);
             grants = grantsInfo.getGrants();
             boolean newSession = token.getPayload() == null;

@@ -65,19 +65,19 @@ public class KeycloakAuthorizationTests {
             new MultiSaslTest(kafkaContainer).doTest();
 
             logStart("KeycloakAuthorizationTest :: JwtValidationAuthzTest");
-            new BasicTest(JWT_LISTENER, false).doTest();
+            new BasicTest(kafkaContainer, JWT_LISTENER, false).doTest();
 
             logStart("KeycloakAuthorizationTest :: IntrospectionValidationAuthzTest");
-            new BasicTest(INTROSPECT_LISTENER, false).doTest();
+            new BasicTest(kafkaContainer, INTROSPECT_LISTENER, false).doTest();
 
             logStart("KeycloakRaftAuthorizationTest :: MetricsTest (part 2)");
             MetricsTest.doTestValidationAndAuthorization();
 
             logStart("KeycloakAuthorizationTest :: OAuthOverPlain + JwtValidationAuthzTest");
-            new OAuthOverPlainTest(JWTPLAIN_LISTENER, true).doTest();
+            new OAuthOverPlainTest(kafkaContainer, JWTPLAIN_LISTENER, true).doTest();
 
             logStart("KeycloakAuthorizationTest :: OAuthOverPlain + IntrospectionValidationAuthzTest");
-            new OAuthOverPlainTest(INTROSPECTPLAIN_LISTENER, true).doTest();
+            new OAuthOverPlainTest(kafkaContainer, INTROSPECTPLAIN_LISTENER, true).doTest();
 
             logStart("KeycloakAuthorizationTest :: OAuthOverPLain + FloodTest");
             new FloodTest(JWTPLAIN_LISTENER, true).doTest();
@@ -90,7 +90,7 @@ public class KeycloakAuthorizationTests {
 
             // This test has to be the last one - it changes the team-a-client, and team-b-client permissions in Keycloak
             logStart("KeycloakAuthorizationTest :: JwtValidationAuthzTest + RefreshGrants");
-            new RefreshTest(JWTREFRESH_LISTENER, false).doTest();
+            new RefreshTest(kafkaContainer, JWTREFRESH_LISTENER, false).doTest();
 
         } catch (Throwable e) {
             log.error("Keycloak Authorization Test failed: ", e);

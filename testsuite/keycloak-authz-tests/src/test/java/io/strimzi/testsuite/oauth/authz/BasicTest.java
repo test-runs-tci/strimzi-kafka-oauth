@@ -4,13 +4,16 @@
  */
 package io.strimzi.testsuite.oauth.authz;
 
+import io.strimzi.testsuite.oauth.common.TestUtil;
 import org.apache.kafka.clients.admin.AdminClient;
 import org.apache.kafka.clients.admin.NewTopic;
 import org.apache.kafka.clients.consumer.Consumer;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.clients.producer.Producer;
+import org.junit.Assert;
 
+import java.util.List;
 import java.util.Properties;
 
 import static java.util.Collections.singletonList;
@@ -18,8 +21,11 @@ import static java.util.Collections.singletonList;
 
 public class BasicTest extends Common {
 
-    public BasicTest(String kafkaBootstrap, boolean oauthOverPlain) {
+    private final String kafkaContainer;
+
+    public BasicTest(String kafkaContainer, String kafkaBootstrap, boolean oauthOverPlain) {
         super(kafkaBootstrap, oauthOverPlain);
+        this.kafkaContainer = kafkaContainer;
     }
 
     public void doTest() throws Exception {
@@ -37,6 +43,8 @@ public class BasicTest extends Common {
         testTeamBClientPart2();
 
         testClusterManager();
+
+        testUserWithNoPermissions();
 
         cleanup();
     }
@@ -215,5 +223,67 @@ public class BasicTest extends Common {
         //
         Producer<String, String> teamBProducer = newProducer(TEAM_B_CLIENT);
         produceFail(teamBProducer, TOPIC_X);
+    }
+
+    void testUserWithNoPermissions() throws Exception {
+        //
+        // User 'zero' has no matching policies, the fetching of grants should return 403 and user should be denied all operations
+        //
+        Properties producerProps = buildProducerConfigForAccount(ZERO);
+        Producer<String, String> producer = new KafkaProducer<>(producerProps);
+
+        Properties consumerProps = buildConsumerConfigForAccount(ZERO);
+        Consumer<String, String> consumer = new KafkaConsumer<>(consumerProps);
+
+        //
+        // 'zero' should fail producing to x_* topic
+        //
+        produceFail(producer, TOPIC_X);
+
+        //
+        // 'zero' should fail producing to a_* topic
+        //
+        produceFail(producer, TOPIC_A);
+
+        //
+        // 'zero' should fail producing to b_* topic
+        //
+        produceFail(producer, TOPIC_B);
+
+        //
+        // 'zero' should fail producing to non-existing topic
+        //
+        produceFail(producer, "non-existing-topic");
+
+        //
+        // 'zero' should fail consuming from x_* topic
+        //
+        consumeFail(consumer, TOPIC_X);
+
+        //
+        // 'zero' should fail consuming from a_* topic
+        //
+        consumeFail(consumer, TOPIC_A);
+
+        //
+        // 'zero' should fail consuming from b_* topic
+        //
+        consumeFail(consumer, TOPIC_B);
+
+        //
+        // 'zero' should fail consuming from "non-existing-topic" - which now exists
+        //
+        consumeFail(consumer, "non-existing-topic");
+
+        // check kafka log
+        List<String> lines = TestUtil.getContainerLogsForString(kafkaContainer, "Saving non-null grants for user: zero");
+        Assert.assertEquals("Saved non-null grants", 1, lines.size());
+
+        lines = TestUtil.getContainerLogsForString(kafkaContainer, "Authorization grants for user OAuthKafkaPrincipal(User:zero,");
+        Assert.assertTrue("Grants for user are: {}", lines.size() > 0);
+
+        for (String line: lines) {
+            Assert.assertTrue("Grants for user are: {}", line.contains(": {}"));
+        }
     }
 }
