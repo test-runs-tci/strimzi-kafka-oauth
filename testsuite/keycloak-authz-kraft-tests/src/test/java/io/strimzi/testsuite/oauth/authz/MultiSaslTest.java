@@ -66,52 +66,6 @@ public class MultiSaslTest {
         } catch (Exception ignored) {
         }
 
-        // No support for SCRAM in KRaft mode yet
-        // Producing to SCRAM listener using SASL_SCRAM-SHA-512 should fail.
-        //producerProps = producerConfigScram(SCRAM_LISTENER, username, password);
-        //try {
-        //    produceToTopic("KeycloakAuthorizationTest-multiSaslTest-scram", producerProps);
-        //    Assert.fail("Should have failed");
-        //} catch (Exception ignored) {
-        //}
-
-
-        // No support for SCRAM in KRaft mode yet
-        // alice:alice-secret (User 'alice' was configured for SASL SCRAM in 'docker/kafka/scripts/start.sh')
-        //username = "alice";
-        //password = "alice-secret";
-
-        // Producing to PLAIN listener using SASL/PLAIN should fail.
-        // User 'alice' _has not_ been configured for PLAIN in PLAIN listener configuration in 'docker-compose.yml'
-        //producerProps = producerConfigPlain(PLAIN_LISTENER, username, password);
-        //try {
-        //    produceToTopic("KeycloakAuthorizationTest-multiSaslTest-plain", producerProps);
-        //    Assert.fail("Should have failed");
-        //} catch (Exception ignored) {
-        //}
-
-        // No support for SCRAM in KRaft mode yet
-        // Producing to SCRAM listener using SASL_SCRAM-SHA-512 should succeed.
-        // The necessary ACLs have been added by 'docker/kafka-acls/scripts/add-acls.sh'
-        //producerProps = producerConfigScram(SCRAM_LISTENER, username, password);
-        //produceToTopic("KeycloakAuthorizationTest-multiSaslTest-scram", producerProps);
-        //try {
-        //    produceToTopic("KeycloakAuthorizationTest-multiSaslTest-scram-denied", producerProps);
-        //    Assert.fail("Should have failed");
-        //} catch (Exception ignored) {
-        //}
-
-        // OAuth authentication should fail
-        //try {
-        //    Common.loginWithUsernamePassword(
-        //            URI.create("http://keycloak:8080/auth/realms/kafka-authz/protocol/openid-connect/token"),
-        //            username, password, "kafka-cli");
-
-        //    Assert.fail("Should have failed");
-        //} catch (Exception ignored) {
-        //}
-
-
         // alice:alice-password
         username = "alice";
         password = "alice-password";
@@ -125,19 +79,10 @@ public class MultiSaslTest {
         } catch (Exception ignored) {
         }
 
-        // No support for SCRAM in KRaft mode yet
-        // Producing to SCRAM listener using SASL_SCRAM-SHA-512 should fail.
-        // User 'alice' was configured for SASL in 'docker/kafka/scripts/start.sh' but with a different password
-        //producerProps = producerConfigScram(SCRAM_LISTENER, username, password);
-        //try {
-        //    produceToTopic("KeycloakAuthorizationTest-multiSaslTest-scram", producerProps);
-        //    Assert.fail("Should have failed");
-        //} catch (Exception ignored) {
-        //}
+        // testScramAuthenticatedSessions();
 
-        // Test the grants reuse feature
-        //int fetchGrantsCount = currentFetchGrantsLogCount();
-        //checkAuthorizationGrantsReuse(0);
+        // TODO
+        int fetchGrantsCount = currentFetchGrantsLogCount();
 
         // Producing to JWT listener using SASL/OAUTHBEARER using access token should succeed
         String accessToken = Common.loginWithUsernamePassword(
@@ -146,30 +91,19 @@ public class MultiSaslTest {
         producerProps = producerConfigOAuthBearerAccessToken(JWT_LISTENER, accessToken);
         produceToTopic("KeycloakAuthorizationTest-multiSaslTest-oauthbearer", producerProps);
 
-        // Test the grants reuse feature
-        //checkAuthorizationGrantsReuse(2);
-        //checkGrantsFetchCountDiff(fetchGrantsCount);
+        // TODO
+        checkGrantsFetchCountDiff(fetchGrantsCount);
 
         // producing to JWTPLAIN listener using SASL/PLAIN using $accessToken should succeed
         producerProps = producerConfigPlain(JWTPLAIN_LISTENER, username, "$accessToken:" + accessToken);
         produceToTopic("KeycloakAuthorizationTest-multiSaslTest-oauth-over-plain", producerProps);
 
-        // Test the grants reuse feature
-        //checkGrantsFetchCountDiff(fetchGrantsCount);
+        // TODO
+        checkGrantsFetchCountDiff(fetchGrantsCount);
 
         // check metrics
         checkAuthorizationRequestsMetrics(authHostPort, tokenPath);
         checkGrantsMetrics(authHostPort, tokenPath);
-    }
-
-    private void checkAuthorizationGrantsReuse(int numberOfReuses) {
-        List<String> lines = getContainerLogsForString(kafkaContainer, "Found existing grants for the token on another session");
-
-        if (numberOfReuses == 0) {
-            Assert.assertEquals("There should be no reuse of existing grants in Kafka log yet", 0, lines.size());
-        } else {
-            Assert.assertTrue("There should be " + numberOfReuses + " reuses of existing grants in Kafka log", lines.size() >= numberOfReuses);
-        }
     }
 
     private int currentFetchGrantsLogCount() {

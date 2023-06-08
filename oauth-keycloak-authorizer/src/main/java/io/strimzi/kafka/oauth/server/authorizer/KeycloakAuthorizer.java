@@ -4,156 +4,166 @@
  */
 package io.strimzi.kafka.oauth.server.authorizer;
 
-import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
-import io.strimzi.kafka.oauth.common.ConfigException;
-import io.strimzi.kafka.oauth.server.OAuthKafkaPrincipalBuilder;
+import org.apache.kafka.common.Endpoint;
 import org.apache.kafka.common.Uuid;
+import org.apache.kafka.common.acl.AclBinding;
+import org.apache.kafka.common.acl.AclBindingFilter;
 import org.apache.kafka.metadata.authorizer.AclMutator;
 import org.apache.kafka.metadata.authorizer.ClusterMetadataAuthorizer;
 import org.apache.kafka.metadata.authorizer.StandardAcl;
-import org.apache.kafka.metadata.authorizer.StandardAuthorizer;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import org.apache.kafka.server.authorizer.Action;
+import org.apache.kafka.server.authorizer.AuthorizableRequestContext;
+import org.apache.kafka.server.authorizer.AuthorizationResult;
+import org.apache.kafka.server.authorizer.AuthorizerServerInfo;
 
+import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionStage;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 /**
- * An authorizer that grants access based on security policies managed in Keycloak Authorization Services.
- * This is a drop-in replacement for <code>KeycloakRBACAuthorizer</code> with functionality mostly inherited from there.
- * <p>
- * This implementation supports KRaft mode and delegates to <code>org.apache.kafka.metadata.authorizer.StandardAuthorizer</code>
- * if <code>strimzi.authorization.delegate.to.kafka.acl</code> is set to <code>true</code>.
- * <p>
- * This authorizer auto-detects whether the broker runs in KRaft mode or not based on the presence and value of <code>process.roles</code> config option.
- * <p>
- * KeycloakAuthorizer works in conjunction with JaasServerOauthValidatorCallbackHandler, and requires
- * {@link OAuthKafkaPrincipalBuilder} to be configured as 'principal.builder.class' in 'server.properties' file.
- * <p>
- * To install this authorizer in Kafka, specify the following in your 'server.properties':
- * </p>
- * <pre>
- *     authorizer.class.name=io.strimzi.kafka.oauth.server.authorizer.KeycloakAuthorizer
- *     principal.builder.class=io.strimzi.kafka.oauth.server.OAuthKafkaPrincipalBuilder
- * </pre>
- *
- * For more configuration options see README.md and {@link io.strimzi.kafka.oauth.server.authorizer.KeycloakRBACAuthorizer}.
+ * An authorizer that ensures a single stateful instance is used for authorization callbacks
  */
-public class KeycloakAuthorizer extends KeycloakRBACAuthorizer implements ClusterMetadataAuthorizer {
+public class KeycloakAuthorizer implements ClusterMetadataAuthorizer {
 
-    static final Logger log = LoggerFactory.getLogger(KeycloakAuthorizer.class);
-
-    private ClusterMetadataAuthorizer kraftAuthorizer;
-
-    private boolean isKRaft;
-    private AclMutator mutator;
+    private KeycloakAuthorizerSingleton delegate;
 
     @Override
-    AuthzConfig convertToAuthzConfig(Map<String, ?> configs) {
-        AuthzConfig superConfig = super.convertToAuthzConfig(configs);
-        isKRaft = detectKRaft(configs);
-        if (isKRaft) {
-            log.debug("Detected KRaft mode ('process.roles' configured)");
-        }
-        return superConfig;
-    }
-
-    private boolean detectKRaft(Map<String, ?> configs) {
-        // auto-detect KRaft mode
-        Object prop = configs.get("process.roles");
-        String processRoles = prop != null ? String.valueOf(prop) : null;
-        return processRoles != null && processRoles.length() > 0;
-    }
-
-    @Override
-    void setupDelegateAuthorizer(Map<String, ?> configs) {
-        if (isKRaft) {
-            try {
-                kraftAuthorizer = new StandardAuthorizer();
-                setDelegate(kraftAuthorizer);
-                log.debug("Using StandardAuthorizer (KRaft based) as a delegate");
-            } catch (Exception e) {
-                throw new ConfigException("KRaft mode detected ('process.roles' configured), but failed to instantiate org.apache.kafka.metadata.authorizer.StandardAuthorizer", e);
+    public void configure(Map<String, ?> configs) {
+        System.out.println(this + " - configure()");
+        Configuration configuration = new Configuration(configs);
+        KeycloakAuthorizerSingleton singleton = KeycloakAuthorizerService.getInstance();
+        if (singleton != null) {
+            if (configuration.equals(singleton.getConfiguration())) {
+                delegate = singleton;
             }
         }
-        super.setupDelegateAuthorizer(configs);
+
+        if (delegate == null) {
+            singleton = new KeycloakAuthorizerSingleton();
+            singleton.configure(configs);
+            KeycloakAuthorizerService.setInstance(singleton);
+            delegate = singleton;
+        }
     }
 
-    /**
-     * Set the mutator object which should be used for creating and deleting ACLs.
-     */
-    @SuppressFBWarnings("EI_EXPOSE_REP2")
-    // See https://spotbugs.readthedocs.io/en/stable/bugDescriptions.html#ei2-may-expose-internal-representation-by-incorporating-reference-to-mutable-object-ei-expose-rep2
+    @Override
     public void setAclMutator(AclMutator aclMutator) {
-        if (kraftAuthorizer != null) {
-            kraftAuthorizer.setAclMutator(aclMutator);
+        //if (delegate == null) {
+        //    throw new IllegalStateException("KeycloakAuthorizer has not been configured");
+        //}
+        System.out.println(this + " - setAclMutator()");
+        if (delegate != null) {
+            delegate.setAclMutator(aclMutator);
         }
-        this.mutator = aclMutator;
     }
 
-    /**
-     * Get the mutator object which should be used for creating and deleting ACLs.
-     *
-     * @throws org.apache.kafka.common.errors.NotControllerException
-     *              If the aclMutator was not set.
-     */
-    @SuppressFBWarnings("EI_EXPOSE_REP")
-    // See https://spotbugs.readthedocs.io/en/stable/bugDescriptions.html#ei-may-expose-internal-representation-by-returning-reference-to-mutable-object-ei-expose-rep
+    @Override
     public AclMutator aclMutatorOrException() {
-        if (kraftAuthorizer != null) {
-            return kraftAuthorizer.aclMutatorOrException();
+        //if (delegate == null) {
+        //    throw new IllegalStateException("KeycloakAuthorizer has not been configured");
+        //}
+        System.out.println(this + " - aclMutatorOrException()");
+        if (delegate != null) {
+            return delegate.aclMutatorOrException();
         }
-        return mutator;
+        throw new IllegalStateException("KeycloakAuthorizer has not been configured");
     }
 
-    /**
-     * Complete the initial load of the cluster metadata authorizer, so that all
-     * principals can use it.
-     */
+    @Override
     public void completeInitialLoad() {
-        if (kraftAuthorizer != null) {
-            kraftAuthorizer.completeInitialLoad();
+        //if (delegate == null) {
+        //    throw new IllegalStateException("KeycloakAuthorizer has not been configured");
+        //}
+        System.out.println(this + " - completeInitialLoad()");
+        if (delegate != null) {
+            delegate.completeInitialLoad();
         }
     }
 
-    /**
-     * Complete the initial load of the cluster metadata authorizer with an exception,
-     * indicating that the loading process has failed.
-     */
+    @Override
     public void completeInitialLoad(Exception e) {
-        if (kraftAuthorizer != null) {
-            kraftAuthorizer.completeInitialLoad(e);
+        //if (delegate == null) {
+        //    throw new IllegalStateException("KeycloakAuthorizer has not been configured");
+        //}
+        System.out.println(this + " - completeInitialLoad(e): " + e);
+        if (e != null) {
+            e.printStackTrace();
         }
-        log.error("Failed to load authorizer cluster metadata", e);
+        if (delegate != null) {
+            delegate.completeInitialLoad(e);
+        }
     }
 
-    /**
-     * Load the ACLs in the given map. Anything not in the map will be removed.
-     * The authorizer will also wait for this initial snapshot load to complete when
-     * coming up.
-     */
+    @Override
     public void loadSnapshot(Map<Uuid, StandardAcl> acls) {
-        if (kraftAuthorizer != null) {
-            kraftAuthorizer.loadSnapshot(acls);
+        //if (delegate == null) {
+        //    throw new IllegalStateException("KeycloakAuthorizer has not been configured");
+        //}
+        System.out.println(this + " - loadSnapshot(acls): " + acls);
+        if (delegate != null) {
+            delegate.loadSnapshot(acls);
         }
     }
 
-    /**
-     * Add a new ACL. Any ACL with the same ID will be replaced.
-     */
+    @Override
     public void addAcl(Uuid id, StandardAcl acl) {
-        if (kraftAuthorizer == null) {
-            throw new UnsupportedOperationException("StandardAuthorizer ACL delegation not enabled");
+        //if (delegate == null) {
+        //    throw new IllegalStateException("KeycloakAuthorizer has not been configured");
+        //}
+        System.out.println(this + " - addAcl(id, acl): id=" + id + ", acl=" + acl);
+        if (delegate != null) {
+            delegate.addAcl(id, acl);
         }
-        kraftAuthorizer.addAcl(id, acl);
     }
 
-    /**
-     * Remove the ACL with the given ID.
-     */
+    @Override
     public void removeAcl(Uuid id) {
-        if (kraftAuthorizer == null) {
-            throw new UnsupportedOperationException("StandardAuthorizer ACL delegation not enabled");
+        //if (delegate == null) {
+        //    throw new IllegalStateException("KeycloakAuthorizer has not been configured");
+        //}
+        System.out.println(this + " - removeAcl(id): " + id);
+        if (delegate != null) {
+            delegate.removeAcl(id);
         }
-        kraftAuthorizer.removeAcl(id);
+    }
+
+    @Override
+    public Map<Endpoint, ? extends CompletionStage<Void>> start(AuthorizerServerInfo serverInfo) {
+        //if (delegate != null) {
+        //    throw new IllegalStateException("KeycloakAuthorizer has not been configured");
+        //}
+        System.out.println(this + " - start(serverInfo): " + serverInfo);
+        if (delegate != null) {
+            return delegate.start(serverInfo);
+        }
+
+        CompletableFuture<Void> future = CompletableFuture.completedFuture(null);
+        return serverInfo.endpoints().stream().collect(Collectors.toMap(Function.identity(), e -> future));
+    }
+
+    @Override
+    public List<AuthorizationResult> authorize(AuthorizableRequestContext requestContext, List<Action> actions) {
+        if (delegate == null) {
+            throw new IllegalStateException("KeycloakAuthorizer has not been configured");
+        }
+        return delegate.authorize(requestContext, actions);
+    }
+
+    @Override
+    public Iterable<AclBinding> acls(AclBindingFilter filter) {
+        if (delegate == null) {
+            throw new IllegalStateException("KeycloakAuthorizer has not been configured");
+        }
+        return delegate.acls(filter);
+    }
+
+    @Override
+    public void close() {
+        if (delegate != null) {
+            delegate.close();
+        }
     }
 }

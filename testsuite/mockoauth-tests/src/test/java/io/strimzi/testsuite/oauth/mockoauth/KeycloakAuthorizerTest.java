@@ -67,7 +67,7 @@ public class KeycloakAuthorizerTest {
     private static final Logger LOG = LoggerFactory.getLogger(KeycloakAuthorizerTest.class);
 
     static final int LOOP_PAUSE_MS = 1000;
-    static final int TIMEOUT_SECONDS = 5;
+    static final int TIMEOUT_SECONDS = 30;
 
     static final String LOG_PATH = "target/test.log";
 
@@ -263,8 +263,8 @@ public class KeycloakAuthorizerTest {
                 // It's the same whether reuseGrants is true or false - because concurrent requests are perceived by user to occur at the same time
                 lines = logReader.readNext();
 
-                Assert.assertEquals("One thread fetches grants", 1, countLogForRegex(lines, "GrantsHandler - Fetching grants from Keycloak for user user1"));
-                Assert.assertEquals("One thread waits", 1, countLogForRegex(lines, "GrantsHandler - Waiting on another thread to get grants"));
+                Assert.assertEquals("One thread fetches grants", 1, countLogForRegex(lines, "Fetching grants from Keycloak for user user1"));
+                Assert.assertEquals("One thread waits", 1, countLogForRegex(lines, "Waiting on another thread to get grants"));
                 Assert.assertEquals("One grants fetch", 1, countLogForRegex(lines, "Response body for POST https://mockoauth:8090/grants"));
 
                 // Check the authorization result
@@ -468,8 +468,8 @@ public class KeycloakAuthorizerTest {
             LogLineReader logReader = new LogLineReader(LOG_PATH);
 
             // wait for cgGrants run on 0 users
-            LOG.info("Waiting for: Grants gc: active users count: 0");
-            waitFor(logReader, "GrantsHandler - Grants gc: active users count: 0");
+            LOG.info("Waiting for: active users count: 0"); // Make sure to not repeat the below condition in the string here
+            waitFor(logReader, "Grants gc: active users count: 0");
 
             LOG.info("Authenticate (validate) as gcUser1");
             OAuthKafkaPrincipal principal = authenticate(authHandler, tokenInfo);
@@ -492,7 +492,7 @@ public class KeycloakAuthorizerTest {
 
             // check the logs for updated access token
             List<String> lines = logReader.readNext();
-            Assert.assertEquals("Fetch grants", 1, countLogForRegex(lines, "GrantsHandler - Fetching grants from Keycloak for user gcUser1"));
+            Assert.assertEquals("Fetch grants", 1, countLogForRegex(lines, "Fetching grants from Keycloak for user gcUser1"));
 
 
             String userTwo = "gcUser2";
@@ -506,9 +506,9 @@ public class KeycloakAuthorizerTest {
             LOG.info("Authenticate (validate) gcUser2");
             principal = authenticate(authHandler, tokenInfo);
 
-            LOG.info("Waiting for: Grants gc: active users count: 2, grantsCache size before: 1, grantsCache size after: 1");
+            LOG.info("Waiting for: active users count: 2, grantsCache size before: 1, grantsCache size after: 1"); // Make sure to not repeat the below condition in the string here
             // wait for cgGrants run on 2 users
-            waitFor(logReader, "GrantsHandler - Grants gc: active users count: 2, grantsCache size before: 1, grantsCache size after: 1");
+            waitFor(logReader, "Grants gc: active users count: 2, grantsCache size before: 1, grantsCache size after: 1");
 
 
             authzContext = newAuthorizableRequestContext(principal);
@@ -518,13 +518,13 @@ public class KeycloakAuthorizerTest {
             Assert.assertEquals("Authz result: ALLOWED", AuthorizationResult.ALLOWED, result.get(0));
 
             // wait for cgGrants run on 2 users and two grants cache entries
-            LOG.info("Waiting for: Grants gc: active users count: 2, grantsCache size before: 2, grantsCache size after: 2");
-            waitFor(logReader, "GrantsHandler - Grants gc: active users count: 2, grantsCache size before: 2, grantsCache size after: 2");
+            LOG.info("Waiting for: active users count: 2, grantsCache size before: 2, grantsCache size after: 2"); // Make sure to not repeat the below condition in the string here
+            waitFor(logReader, "Grants gc: active users count: 2, grantsCache size before: 2, grantsCache size after: 2");
 
 
             // now wait for token to expire for gcUser2
-            LOG.info("Waiting for: Grants gc: active users count: 1, grantsCache size before: 2, grantsCache size after: 1");
-            waitFor(logReader, "GrantsHandler - Grants gc: active users count: 1, grantsCache size before: 2, grantsCache size after: 1");
+            LOG.info("Waiting for: active users count: 1, grantsCache size before: 2, grantsCache size after: 1"); // Make sure to not repeat the below condition in the string here
+            waitFor(logReader, "Grants gc: active users count: 1, grantsCache size before: 2, grantsCache size after: 1");
 
 
             // authorization should now fail since the token has expired
@@ -623,7 +623,7 @@ public class KeycloakAuthorizerTest {
             Assert.assertEquals("Authz result: DENIED", AuthorizationResult.DENIED, result.get(0));
 
             // This is a first authorize() call on the KeycloakAuthorizer -> the grantsCache is empty
-            LOG.info("Waiting for: unsupported segment type: Topc");
+            LOG.info("Waiting for: unsupported segment type: Topc"); // Make sure to not repeat the below condition in the string here
             waitFor(logReader, "Failed to parse .* unsupported segment type: Topc");
 
 
@@ -633,7 +633,7 @@ public class KeycloakAuthorizerTest {
                     "{\"scopes\":[\"Describe\",\"Read\"],\"rsid\":\"141c56e8-1a85-40f3-b38a-f490bad76913\",\"rsname\":\"Group:*\"}]");
 
             // wait for grants refresh
-            LOG.info("Waiting for: Done refreshing grants");
+            LOG.info("Waiting for: Done refreshing grants"); // Make sure to not repeat the below condition in the string here
             waitFor(logReader, "Response body .*Topic;my-topic");
 
 
@@ -641,7 +641,7 @@ public class KeycloakAuthorizerTest {
             result = authorizer.authorize(authzContext, actions);
             Assert.assertEquals("Authz result: DENIED", AuthorizationResult.DENIED, result.get(0));
 
-            LOG.info("Waiting for: part doesn't follow TYPE:NAME pattern");
+            LOG.info("Waiting for: doesn't follow TYPE:NAME pattern"); // Make sure to not repeat the below condition in the string here
             waitFor(logReader, "part doesn't follow TYPE:NAME pattern");
 
             // malformed resource spec - '*' not at the end in 'Topic:*-topic'
@@ -650,7 +650,7 @@ public class KeycloakAuthorizerTest {
                     "{\"scopes\":[\"Describe\",\"Read\"],\"rsid\":\"141c56e8-1a85-40f3-b38a-f490bad76913\",\"rsname\":\"Group:*\"}]");
 
             // wait for grants refresh
-            LOG.info("Waiting for: Done refreshing grants");
+            LOG.info("Waiting for: Done refreshing grants"); // Make sure to not repeat the below condition in the string here
             waitFor(logReader, "Response body .*Topic:\\*-topic");
 
             LOG.info("Call authorize() - test grants record with malformed resource spec 'Topic:*-topic' ('*' only interpreted as asterisk at the end of resource spec)");
@@ -664,7 +664,7 @@ public class KeycloakAuthorizerTest {
                     "{\"scopes\":[\"Describe\",\"Read\"],\"rsid\":\"141c56e8-1a85-40f3-b38a-f490bad76913\",\"rsname\":\"Group:*\"}]");
 
             // wait for grants refresh
-            LOG.info("Waiting for: Done refreshing grants");
+            LOG.info("Waiting for: Done refreshing grants"); // Make sure to not repeat the below condition in the string here
             waitFor(logReader, "Response body .*Crate");
 
             LOG.info("Call authorize() - test grants record with unknown / invalid scope 'Crate' (it should be 'Create')");

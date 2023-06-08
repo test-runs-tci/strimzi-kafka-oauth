@@ -6,6 +6,14 @@ package io.strimzi.testsuite.oauth.authz;
 
 import io.strimzi.testsuite.oauth.common.TestContainersLogCollector;
 import io.strimzi.testsuite.oauth.common.TestContainersWatcher;
+import io.strimzi.testsuite.oauth.common.TestUtil;
+import org.apache.kafka.clients.admin.AdminClient;
+import org.apache.kafka.common.acl.AccessControlEntryFilter;
+import org.apache.kafka.common.acl.AclBinding;
+import org.apache.kafka.common.acl.AclBindingFilter;
+import org.apache.kafka.common.acl.AclOperation;
+import org.apache.kafka.common.acl.AclPermissionType;
+import org.apache.kafka.common.resource.ResourcePatternFilter;
 import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
@@ -16,6 +24,7 @@ import org.testcontainers.containers.wait.strategy.Wait;
 
 import java.io.File;
 import java.time.Duration;
+import java.util.Collection;
 
 /**
  * Tests for OAuth authentication using Keycloak + Keycloak Authorization Services based authorization
@@ -48,6 +57,7 @@ public class KeycloakAuthorizationTests {
     private static final String JWTPLAIN_LISTENER = "kafka:9094";
     private static final String INTROSPECTPLAIN_LISTENER = "kafka:9095";
     private static final String JWTREFRESH_LISTENER = "kafka:9096";
+    private static final String PLAIN_LISTENER = "kafka:9100";
 
     @Test
     public void doTest() throws Exception {
@@ -59,6 +69,9 @@ public class KeycloakAuthorizationTests {
 
             logStart("KeycloakAuthorizationTest :: MetricsTest");
             MetricsTest.doTest();
+
+            // Ensure ACLs have been added to Kafka cluster
+            waitForACLs();
 
             // This test assumes that it is the first producing and consuming test
             logStart("KeycloakAuthorizationTest :: MultiSaslTests");
@@ -95,6 +108,29 @@ public class KeycloakAuthorizationTests {
         } catch (Throwable e) {
             log.error("Keycloak Authorization Test failed: ", e);
             throw e;
+        }
+    }
+
+    private void waitForACLs() throws Exception {
+
+        // Create admin client using user `admin:admin-password` over PLAIN listener (port 9100)
+        try (AdminClient adminClient = Common.buildAdminClientForPlain(PLAIN_LISTENER, "admin")) {
+
+            TestUtil.waitForCondition(() -> {
+                try {
+                    Collection<AclBinding> result = adminClient.describeAcls(new AclBindingFilter(ResourcePatternFilter.ANY,
+                            new AccessControlEntryFilter("User:alice", null, AclOperation.IDEMPOTENT_WRITE, AclPermissionType.ALLOW))).values().get();
+                    for (AclBinding acl : result) {
+                        if (AclOperation.IDEMPOTENT_WRITE.equals(acl.entry().operation())) {
+                            return true;
+                        }
+                    }
+                    return false;
+
+                } catch (Exception e) {
+                    throw new RuntimeException("ACLs for User:alice could not be retrieved: ", e);
+                }
+            }, 500, 210);
         }
     }
 

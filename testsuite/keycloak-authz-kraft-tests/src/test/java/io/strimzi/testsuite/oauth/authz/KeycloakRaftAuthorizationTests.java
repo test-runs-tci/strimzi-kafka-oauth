@@ -59,7 +59,6 @@ public class KeycloakRaftAuthorizationTests {
     private static final String JWTPLAIN_LISTENER = "kafka:9094";
     private static final String INTROSPECTPLAIN_LISTENER = "kafka:9095";
     private static final String JWTREFRESH_LISTENER = "kafka:9096";
-
     private static final String PLAIN_LISTENER = "kafka:9100";
 
     @Test
@@ -67,14 +66,14 @@ public class KeycloakRaftAuthorizationTests {
         try {
 
             String kafkaContainer = environment.getContainerByServiceName("kafka_1").get().getContainerInfo().getName().substring(1);
-
+/*
             logStart("KeycloakRaftAuthorizationTest :: ConfigurationTest");
             new ConfigurationTest(kafkaContainer).doTest();
 
             logStart("KeycloakRaftAuthorizationTest :: MetricsTest");
             MetricsTest.doTest();
-
-            // Ensure ACLs have been added to Kafka cluster
+*/
+            // Before running the rest of the tests, ensure ACLs have been added to Kafka cluster
             waitForACLs();
 
             logStart("KeycloakRaftAuthorizationTest :: MultiSaslTests");

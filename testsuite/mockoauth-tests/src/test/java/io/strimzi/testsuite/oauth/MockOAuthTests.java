@@ -57,6 +57,7 @@ public class MockOAuthTests {
     public void runTests() throws Exception {
         try {
             String kafkaContainer = environment.getContainerByServiceName("kafka_1").get().getContainerInfo().getName().substring(1);
+            System.out.println("See log at: " + new File("target/test.log").getAbsolutePath());
 
             logStart("MetricsTest :: Basic Metrics Tests");
             new MetricsTest().doTest();

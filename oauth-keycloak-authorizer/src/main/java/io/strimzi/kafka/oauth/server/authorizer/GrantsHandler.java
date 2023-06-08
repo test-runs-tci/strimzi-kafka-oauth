@@ -188,7 +188,7 @@ class GrantsHandler implements Closeable {
      * @param grantsMaxIdleTimeSeconds An idle time in seconds during which the cached grant wasn't accesses by any session so is deemed unneeded, and can be garbage collected
      * @param httpGrantsProvider A function with grant fetching logic
      * @param httpRetries A maximum number of repeated attempts if a grants request to the token endpoint fails in unexpected way
-     * @param gcPeriodSeconds Number of seconds between two cosecutive grants garbage collection job runs
+     * @param gcPeriodSeconds Number of seconds between two consecutive grants garbage collection job runs
      */
     GrantsHandler(int grantsRefreshPeriodSeconds, int grantsRefreshPoolSize, int grantsMaxIdleTimeSeconds, Function<String, JsonNode> httpGrantsProvider, int httpRetries, int gcPeriodSeconds) {
         this.authorizationGrantsProvider = httpGrantsProvider;
@@ -269,7 +269,7 @@ class GrantsHandler implements Closeable {
         // If no grants found, fetch grants from server
         JsonNode grants = null;
         try {
-            log.debug("Fetching grants from Keycloak for user {}", userId);
+            log.debug("[{}] Fetching grants from Keycloak for user {}", this, userId);
             grants = fetchGrantsWithRetry(grantsInfo.getAccessToken());
             if (grants == null) {
                 log.debug("Received null grants for user: {}, token: {}", userId, mask(grantsInfo.getAccessToken()));
@@ -461,6 +461,7 @@ class GrantsHandler implements Closeable {
         if (semaphore.acquired()) {
             // If acquired
             try {
+                log.debug("[{}] Acquired semaphore for '{}'", this, userId);
                 JsonNode grants = fetchAndSaveGrants(userId, grantsInfo);
                 semaphore.future().complete(grants);
                 return grants;
@@ -470,11 +471,12 @@ class GrantsHandler implements Closeable {
                 throw t;
             } finally {
                 semaphores.releaseSemaphore(userId);
+                log.debug("[{}] Released semaphore for '{}'", this, userId);
             }
 
         } else {
             try {
-                log.debug("Waiting on another thread to get grants");
+                log.debug("[{}] Waiting on another thread to get grants for '{}'", this, userId);
                 return semaphore.future().get();
             } catch (ExecutionException e) {
                 Throwable cause = e.getCause();

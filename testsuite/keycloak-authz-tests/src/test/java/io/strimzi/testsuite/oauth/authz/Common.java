@@ -363,6 +363,11 @@ public class Common {
         return p;
     }
 
+    static AdminClient buildAdminClientForPlain(String kafkaBootstrap, String user) {
+        Properties adminProps = buildProducerConfigPlain(kafkaBootstrap, buildAuthConfigForPlain(user, user + "-password"));
+        return AdminClient.create(adminProps);
+    }
+
     void cleanup() {
         Properties bobAdminProps = buildAdminConfigForAccount(BOB);
         try (AdminClient admin = AdminClient.create(bobAdminProps)) {

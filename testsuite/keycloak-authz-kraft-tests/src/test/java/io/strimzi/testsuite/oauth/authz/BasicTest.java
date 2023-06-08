@@ -225,7 +225,6 @@ public class BasicTest extends Common {
         produceFail(teamBProducer, TOPIC_X);
     }
 
-
     void testUserWithNoPermissions() throws Exception {
         //
         // User 'zero' has no matching policies, the fetching of grants should return 403 and user should be denied all operations
