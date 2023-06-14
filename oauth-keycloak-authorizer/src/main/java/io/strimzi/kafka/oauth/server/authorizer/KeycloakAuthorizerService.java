@@ -9,23 +9,27 @@ package io.strimzi.kafka.oauth.server.authorizer;
  */
 public class KeycloakAuthorizerService {
 
-    private static KeycloakAuthorizerSingleton instance;
+    private static KeycloakRBACAuthorizer instance;
 
     /**
-     * Get the current instance
+     * Get the current singleton instance
      *
-     * @return The instance previously set by {@link #setInstance(KeycloakAuthorizerSingleton)}
+     * @return The instance previously set by {@link #setInstance(KeycloakRBACAuthorizer)}
      */
-    public static KeycloakAuthorizerSingleton getInstance() {
+    static KeycloakRBACAuthorizer getInstance() {
         return instance;
     }
 
     /**
-     * Set the current KeycloakAuthorizerSingleton instance
+     * Set the current KeycloakRBACAuthorizer instance as singleton
      *
      * @param instance The new instance
      */
-    public static void setInstance(KeycloakAuthorizerSingleton instance) {
+    static void setInstance(KeycloakRBACAuthorizer instance) {
         KeycloakAuthorizerService.instance = instance;
+    }
+
+    static void clearInstance() {
+        instance = null;
     }
 }

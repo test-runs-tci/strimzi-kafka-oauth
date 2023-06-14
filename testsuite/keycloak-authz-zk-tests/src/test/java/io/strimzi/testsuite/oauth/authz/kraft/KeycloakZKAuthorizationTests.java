@@ -2,8 +2,16 @@
  * Copyright 2017-2020, Strimzi authors.
  * License: Apache License 2.0 (see the file LICENSE or http://apache.org/licenses/LICENSE-2.0.html).
  */
-package io.strimzi.testsuite.oauth.authz;
+package io.strimzi.testsuite.oauth.authz.kraft;
 
+import io.strimzi.testsuite.oauth.authz.BasicTest;
+import io.strimzi.testsuite.oauth.authz.Common;
+import io.strimzi.testsuite.oauth.authz.ConfigurationTest;
+import io.strimzi.testsuite.oauth.authz.FloodTest;
+import io.strimzi.testsuite.oauth.authz.MetricsTest;
+import io.strimzi.testsuite.oauth.authz.OAuthOverPlainTest;
+import io.strimzi.testsuite.oauth.authz.RefreshTest;
+import io.strimzi.testsuite.oauth.authz.SingletonTest;
 import io.strimzi.testsuite.oauth.common.TestContainersLogCollector;
 import io.strimzi.testsuite.oauth.common.TestContainersWatcher;
 import org.junit.ClassRule;
@@ -20,14 +28,14 @@ import java.time.Duration;
 import static io.strimzi.testsuite.oauth.common.TestUtil.logStart;
 
 /**
- * Tests for OAuth authentication using Keycloak + Keycloak Authorization Services based authorization when KeycloakRBACAuthorizer is configured on the Kafka broker running in Zookeeper mode.
+ * Tests for OAuth authentication using Keycloak + Keycloak Authorization Services based authorization when KeycloakAuthorizer is configured on the Kafka broker running in Zookeeper mode.
  * <p>
  * This test assumes there are multiple listeners configured with OAUTHBEARER or PLAIN support, but each configured differently
  * - configured with different options, or different realm.
  * <p>
- * There is KeycloakRBACAuthorizer configured on the Kafka broker.
+ * There is KeycloakAuthorizer configured on the Kafka broker.
  */
-public class KeycloakAuthorizationTests {
+public class KeycloakZKAuthorizationTests {
 
     @ClassRule
     public static TestContainersWatcher environment =
@@ -43,7 +51,7 @@ public class KeycloakAuthorizationTests {
     @Rule
     public TestRule logCollector = new TestContainersLogCollector(environment);
 
-    private static final Logger log = LoggerFactory.getLogger(KeycloakAuthorizationTests.class);
+    private static final Logger log = LoggerFactory.getLogger(KeycloakZKAuthorizationTests.class);
 
     private static final String JWT_LISTENER = "kafka:9092";
     private static final String INTROSPECT_LISTENER = "kafka:9093";
@@ -55,51 +63,54 @@ public class KeycloakAuthorizationTests {
     @Test
     public void doTest() throws Exception {
         try {
+
             String kafkaContainer = environment.getContainerByServiceName("kafka_1").get().getContainerInfo().getName().substring(1);
 
-            logStart("KeycloakAuthorizationTest :: ConfigurationTest");
+            logStart("KeycloakZKAuthorizationTest :: ConfigurationTest");
             new ConfigurationTest(kafkaContainer).doTest();
 
-            logStart("KeycloakAuthorizationTest :: MetricsTest (part 1)");
+            logStart("KeycloakZKAuthorizationTest :: MetricsTest (part 1)");
             MetricsTest.doTest();
 
-            // Ensure ACLs have been added to Kafka cluster
+            // Before running the rest of the tests, ensure ACLs have been added to Kafka cluster
             Common.waitForACLs();
 
-            // This test assumes that it is the first producing and consuming test
-            logStart("KeycloakAuthorizationTest :: MultiSaslTests");
+            logStart("KeycloakZKAuthorizationTest :: MultiSaslTests");
             new MultiSaslTest(kafkaContainer).doTest();
 
-            logStart("KeycloakAuthorizationTest :: JwtValidationAuthzTest");
+            logStart("KeycloakZKAuthorizationTest :: JwtValidationAuthzTest");
             new BasicTest(kafkaContainer, JWT_LISTENER, false).doTest();
 
-            logStart("KeycloakAuthorizationTest :: IntrospectionValidationAuthzTest");
+            logStart("KeycloakZKAuthorizationTest :: IntrospectionValidationAuthzTest");
             new BasicTest(kafkaContainer, INTROSPECT_LISTENER, false).doTest();
 
-            logStart("KeycloakAuthorizationTest :: MetricsTest (part 2)");
+            logStart("KeycloakZKAuthorizationTest :: MetricsTest (part 2)");
             MetricsTest.doTestValidationAndAuthorization();
 
-            logStart("KeycloakAuthorizationTest :: OAuthOverPlain + JwtValidationAuthzTest");
+            logStart("KeycloakZKAuthorizationTest :: OAuthOverPlain + JwtValidationAuthzTest");
             new OAuthOverPlainTest(kafkaContainer, JWTPLAIN_LISTENER, true).doTest();
 
-            logStart("KeycloakAuthorizationTest :: OAuthOverPlain + IntrospectionValidationAuthzTest");
+            logStart("KeycloakZKAuthorizationTest :: OAuthOverPlain + IntrospectionValidationAuthzTest");
             new OAuthOverPlainTest(kafkaContainer, INTROSPECTPLAIN_LISTENER, true).doTest();
 
-            logStart("KeycloakAuthorizationTest :: OAuthOverPLain + FloodTest");
+            logStart("KeycloakZKAuthorizationTest :: OAuthOverPLain + FloodTest");
             new FloodTest(JWTPLAIN_LISTENER, true).doTest();
 
-            logStart("KeycloakAuthorizationTest :: JWT FloodTest");
+            logStart("KeycloakZKAuthorizationTest :: JWT FloodTest");
             new FloodTest(JWT_LISTENER, false).doTest();
 
-            logStart("KeycloakAuthorizationTest :: Introspection FloodTest");
+            logStart("KeycloakZKAuthorizationTest :: Introspection FloodTest");
             new FloodTest(INTROSPECT_LISTENER, false).doTest();
 
             // This test has to be the last one - it changes the team-a-client, and team-b-client permissions in Keycloak
-            logStart("KeycloakAuthorizationTest :: JwtValidationAuthzTest + RefreshGrants");
+            logStart("KeycloakZKAuthorizationTest :: JwtValidationAuthzTest + RefreshGrants");
             new RefreshTest(kafkaContainer, JWTREFRESH_LISTENER, false).doTest();
 
+            logStart("KeycloakKRaftAuthorizationTest :: SingletonTest");
+            new SingletonTest(kafkaContainer).doSingletonTest(1);
+
         } catch (Throwable e) {
-            log.error("Keycloak Authorization Test failed: ", e);
+            log.error("Keycloak ZK Authorization Test failed: ", e);
             throw e;
         }
     }

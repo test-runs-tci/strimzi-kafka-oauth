@@ -36,7 +36,7 @@ public class FloodTest extends Common {
 
     static int sendLimit = 1;
 
-    FloodTest(String kafkaBootstrap, boolean oauthOverPlain) {
+    public FloodTest(String kafkaBootstrap, boolean oauthOverPlain) {
         super(kafkaBootstrap, oauthOverPlain);
     }
 

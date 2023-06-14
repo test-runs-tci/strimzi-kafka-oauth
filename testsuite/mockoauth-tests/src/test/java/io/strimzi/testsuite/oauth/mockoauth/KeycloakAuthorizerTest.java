@@ -18,6 +18,7 @@ import io.strimzi.kafka.oauth.server.TestTokenFactory;
 import io.strimzi.kafka.oauth.server.authorizer.AuthzConfig;
 import io.strimzi.kafka.oauth.server.authorizer.KeycloakAuthorizer;
 import io.strimzi.kafka.oauth.server.authorizer.KeycloakRBACAuthorizer;
+import io.strimzi.kafka.oauth.server.authorizer.TestAuthzUtil;
 import io.strimzi.testsuite.oauth.common.TestUtil;
 import org.apache.kafka.common.acl.AclOperation;
 import org.apache.kafka.common.resource.PatternType;
@@ -33,7 +34,6 @@ import org.apache.kafka.common.security.oauthbearer.internals.OAuthBearerSaslSer
 import org.apache.kafka.server.authorizer.Action;
 import org.apache.kafka.server.authorizer.AuthorizableRequestContext;
 import org.apache.kafka.server.authorizer.AuthorizationResult;
-import org.jetbrains.annotations.NotNull;
 import org.junit.Assert;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -54,6 +54,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeoutException;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 import static io.strimzi.testsuite.oauth.mockoauth.Common.addGrantsForToken;
 import static io.strimzi.testsuite.oauth.mockoauth.Common.changeAuthServerMode;
@@ -109,6 +110,7 @@ public class KeycloakAuthorizerTest {
         doConcurrentGrantsRefreshTest();
         doGrantsGCTests();
         doGrants403Test();
+        doSingletonTest();
     }
 
     private void doGrants403Test() throws IOException {
@@ -121,7 +123,7 @@ public class KeycloakAuthorizerTest {
         LogLineReader logReader = new LogLineReader(LOG_PATH);
         List<String> lines = logReader.readNext();
 
-        HashMap<String, String> props = configureAuthorizer(CLIENT_SRV, CLIENT_SRV_SECRET);
+        HashMap<String, String> props = configureAuthorizer();
         props.put(AuthzConfig.STRIMZI_AUTHORIZATION_TOKEN_ENDPOINT_URI, "https://mockoauth:8090/grants");
 
         try (KeycloakAuthorizer authorizer = new KeycloakAuthorizer()) {
@@ -150,6 +152,8 @@ public class KeycloakAuthorizerTest {
         } finally {
             changeAuthServerMode("grants", "MODE_200");
         }
+
+        TestAuthzUtil.clearKeycloakAuthorizerService();
     }
 
     void doHttpRetriesTest() throws IOException {
@@ -158,7 +162,7 @@ public class KeycloakAuthorizerTest {
         changeAuthServerMode("token", "MODE_200");
         changeAuthServerMode("failing_token", "MODE_400");
 
-        HashMap<String, String> props = configureAuthorizer(CLIENT_SRV, CLIENT_SRV_SECRET);
+        HashMap<String, String> props = configureAuthorizer();
         props.put(AuthzConfig.STRIMZI_AUTHORIZATION_TOKEN_ENDPOINT_URI, "https://mockoauth:8090/failing_grants");
 
         try (KeycloakRBACAuthorizer authorizer = new KeycloakRBACAuthorizer()) {
@@ -214,7 +218,7 @@ public class KeycloakAuthorizerTest {
         changeAuthServerMode("grants", "MODE_200_DELAYED");
 
         // one test uses KeycloakAuthorizer not configured with 'strimzi.authorization.reuse.grants'
-        HashMap<String, String> props = configureAuthorizer(CLIENT_SRV, CLIENT_SRV_SECRET);
+        HashMap<String, String> props = configureAuthorizer();
         runConcurrentFetchGrantsTest(props, true, userOne, userOnePass);
 
         // another test uses KeycloakAuthorizer configured with it set to 'false'
@@ -318,6 +322,8 @@ public class KeycloakAuthorizerTest {
                 executorService.shutdown();
             }
         }
+
+        TestAuthzUtil.clearKeycloakAuthorizerService();
     }
 
     void doConfigTests() throws IOException {
@@ -399,6 +405,16 @@ public class KeycloakAuthorizerTest {
         config.put(AuthzConfig.STRIMZI_AUTHORIZATION_GRANTS_GC_PERIOD_SECONDS, "60");
 
         try (KeycloakAuthorizer authorizer = new KeycloakAuthorizer()) {
+            try {
+                authorizer.configure(config);
+                Assert.fail("Should have failed");
+            } catch (ConfigException e) {
+                Assert.assertEquals("Only one instance per JVM", "Only one authorizer configuration per JVM is supported", e.getMessage());
+            }
+        }
+
+        TestAuthzUtil.clearKeycloakAuthorizerService();
+        try (KeycloakAuthorizer authorizer = new KeycloakAuthorizer()) {
             authorizer.configure(config);
         }
 
@@ -420,6 +436,7 @@ public class KeycloakAuthorizerTest {
         // test gcPeriodSeconds set to 0
         config.put(AuthzConfig.STRIMZI_AUTHORIZATION_GRANTS_GC_PERIOD_SECONDS, "0");
 
+        TestAuthzUtil.clearKeycloakAuthorizerService();
         try (KeycloakAuthorizer authorizer = new KeycloakAuthorizer()) {
             authorizer.configure(config);
         }
@@ -428,6 +445,8 @@ public class KeycloakAuthorizerTest {
 
         Assert.assertEquals("gcPeriodSeconds invalid value: 0", 1, countLogForRegex(lines, "'strimzi.authorization.grants.gc.period.seconds' set to invalid value: 0, using the default value: 300 seconds"));
         Assert.assertEquals("gcPeriodSeconds: 300", 1, countLogForRegex(lines, "gcPeriodSeconds: 300"));
+
+        TestAuthzUtil.clearKeycloakAuthorizerService();
     }
 
     void doGrantsGCTests() throws Exception {
@@ -444,7 +463,7 @@ public class KeycloakAuthorizerTest {
         createOAuthUser(userOne, userOnePass);
 
         // Set gcPeriodSeconds to 3 seconds
-        HashMap<String, String> props = configureAuthorizer(CLIENT_SRV, CLIENT_SRV_SECRET);
+        HashMap<String, String> props = configureAuthorizer();
         props.put(AuthzConfig.STRIMZI_AUTHORIZATION_GRANTS_REFRESH_PERIOD_SECONDS, "5");
         props.put(AuthzConfig.STRIMZI_AUTHORIZATION_GRANTS_GC_PERIOD_SECONDS, "3");
 
@@ -532,6 +551,8 @@ public class KeycloakAuthorizerTest {
             result = authorizer.authorize(authzContext, actions);
             Assert.assertEquals("Authz result: DENIED", AuthorizationResult.DENIED, result.get(0));
         }
+
+        TestAuthzUtil.clearKeycloakAuthorizerService();
     }
 
     private OAuthKafkaPrincipal authenticate(AuthenticateCallbackHandler authHandler, TokenInfo tokenInfo) throws IOException {
@@ -609,7 +630,7 @@ public class KeycloakAuthorizerTest {
         // seek to the end of log file
         logReader.readNext();
 
-        HashMap<String, String> props = configureAuthorizer(CLIENT_SRV, CLIENT_SRV_SECRET);
+        HashMap<String, String> props = configureAuthorizer();
         props.put(AuthzConfig.STRIMZI_AUTHORIZATION_GRANTS_REFRESH_PERIOD_SECONDS, "2");
 
         try (KeycloakAuthorizer authorizer = new KeycloakAuthorizer()) {
@@ -671,6 +692,34 @@ public class KeycloakAuthorizerTest {
             result = authorizer.authorize(authzContext, actions);
             Assert.assertEquals("Authz result: DENIED", AuthorizationResult.DENIED, result.get(0));
         }
+
+        TestAuthzUtil.clearKeycloakAuthorizerService();
+    }
+
+    public void doSingletonTest() throws Exception {
+        logStart("KeycloakAuthorizerTest :: Ensure that multiple instantiated KeycloakAuthorizers share a single instance of KeycloakRBACAuthorizer");
+
+        HashMap<String, String> config = configureAuthorizer();
+
+        LogLineReader logReader = new LogLineReader(LOG_PATH);
+        List<String> lines = logReader.readNext();
+
+        try (KeycloakAuthorizer authorizer1 = new KeycloakAuthorizer();
+             KeycloakAuthorizer authorizer2 = new KeycloakAuthorizer()) {
+
+            authorizer1.configure(config);
+            authorizer2.configure(config);
+
+            lines = logReader.readNext();
+
+            List<String> keycloakAuthorizerLines = lines.stream().filter(line -> line.contains("Configured KeycloakAuthorizer@")).collect(Collectors.toList());
+            List<String> keycloakRBACAuthorizerLines = lines.stream().filter(line -> line.contains("Configured KeycloakRBACAuthorizer@")).collect(Collectors.toList());
+
+            Assert.assertEquals("Configured KeycloakAuthorizer", 2, keycloakAuthorizerLines.size());
+            Assert.assertEquals("Configured KeycloakRBACAuthorizer", 1, keycloakRBACAuthorizerLines.size());
+        }
+
+        TestAuthzUtil.clearKeycloakAuthorizerService();
     }
 
     private void waitFor(LogLineReader logReader, String condition) throws TimeoutException, InterruptedException {
@@ -684,38 +733,26 @@ public class KeycloakAuthorizerTest {
         }, LOOP_PAUSE_MS, TIMEOUT_SECONDS);
     }
 
-    private int countLogForRegex(List<String> log, String regex) {
-        int count = 0;
-        Pattern pattern = Pattern.compile(prepareRegex(regex));
-        for (String line: log) {
-            if (pattern.matcher(line).matches()) {
-                count += 1;
-            }
-        }
-        return count;
+    private static Future<List<AuthorizationResult>> submitAuthorizationCall(KeycloakAuthorizer authorizer, AuthorizableRequestContext ctx, ExecutorService executorService, String topic) {
+        return executorService.submit(() -> {
+            List<Action> actions = new ArrayList<>();
+            actions.add(new Action(
+                    AclOperation.CREATE,
+                    new ResourcePattern(ResourceType.TOPIC, topic, PatternType.LITERAL),
+                    1, true, true));
+
+            return authorizer.authorize(ctx, actions);
+        });
     }
 
-    private String prepareRegex(String regex) {
-        String prefix = regex.startsWith("^") ? "" : ".*";
-        String suffix = regex.endsWith("$") ? "" : ".*";
-        return prefix + regex + suffix;
+    private HashMap<String, String> configureAuthorizer() {
+        return configureAuthorizer(CLIENT_SRV, CLIENT_SRV_SECRET, TRUSTSTORE_PATH, TRUSTSTORE_PASS);
     }
 
-    private boolean checkLogForRegex(List<String> log, String regex) {
-        Pattern pattern = Pattern.compile(prepareRegex(regex));
-        for (String line: log) {
-            if (pattern.matcher(line).matches()) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    @NotNull
-    private HashMap<String, String> configureAuthorizer(String clientSrv, String clientSrvSecret) {
+    static HashMap<String, String> configureAuthorizer(String clientSrv, String clientSrvSecret, String trustStorePath, String trustsStorePass) {
         HashMap<String, String> props = new HashMap<>();
-        props.put("strimzi.authorization.ssl.truststore.location", TRUSTSTORE_PATH);
-        props.put("strimzi.authorization.ssl.truststore.password", TRUSTSTORE_PASS);
+        props.put("strimzi.authorization.ssl.truststore.location", trustStorePath);
+        props.put("strimzi.authorization.ssl.truststore.password", trustsStorePass);
         props.put("strimzi.authorization.ssl.truststore.type", "pkcs12");
 
         props.put("strimzi.authorization.enable.metrics", "true");
@@ -734,19 +771,33 @@ public class KeycloakAuthorizerTest {
         return props;
     }
 
-    private static Future<List<AuthorizationResult>> submitAuthorizationCall(KeycloakAuthorizer authorizer, AuthorizableRequestContext ctx, ExecutorService executorService, String topic) {
-        return executorService.submit(() -> {
-            List<Action> actions = new ArrayList<>();
-            actions.add(new Action(
-                    AclOperation.CREATE,
-                    new ResourcePattern(ResourceType.TOPIC, topic, PatternType.LITERAL),
-                    1, true, true));
-
-            return authorizer.authorize(ctx, actions);
-        });
+    static int countLogForRegex(List<String> log, String regex) {
+        int count = 0;
+        Pattern pattern = Pattern.compile(prepareRegex(regex));
+        for (String line: log) {
+            if (pattern.matcher(line).matches()) {
+                count += 1;
+            }
+        }
+        return count;
     }
 
-    @NotNull
+    static String prepareRegex(String regex) {
+        String prefix = regex.startsWith("^") ? "" : ".*";
+        String suffix = regex.endsWith("$") ? "" : ".*";
+        return prefix + regex + suffix;
+    }
+
+    static boolean checkLogForRegex(List<String> log, String regex) {
+        Pattern pattern = Pattern.compile(prepareRegex(regex));
+        for (String line: log) {
+            if (pattern.matcher(line).matches()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     private AuthorizableRequestContext newAuthorizableRequestContext(KafkaPrincipal principal) {
         AuthorizableRequestContext ctx = mock(AuthorizableRequestContext.class);
         when(ctx.listenerName()).thenReturn("JWT");
@@ -756,8 +807,6 @@ public class KeycloakAuthorizerTest {
         return ctx;
     }
 
-
-    @NotNull
     private TokenInfo login(String tokenEndpoint, String user, String userPass, int retries) throws IOException {
         return OAuthAuthenticator.loginWithPassword(
                 URI.create(tokenEndpoint),

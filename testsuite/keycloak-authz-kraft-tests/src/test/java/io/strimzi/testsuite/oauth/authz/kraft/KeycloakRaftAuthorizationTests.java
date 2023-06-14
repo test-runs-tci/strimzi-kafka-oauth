@@ -2,18 +2,19 @@
  * Copyright 2017-2020, Strimzi authors.
  * License: Apache License 2.0 (see the file LICENSE or http://apache.org/licenses/LICENSE-2.0.html).
  */
-package io.strimzi.testsuite.oauth.authz;
+package io.strimzi.testsuite.oauth.authz.kraft;
 
+import io.strimzi.testsuite.oauth.authz.BasicTest;
+import io.strimzi.testsuite.oauth.authz.Common;
+import io.strimzi.testsuite.oauth.authz.ConfigurationTest;
+import io.strimzi.testsuite.oauth.authz.FloodTest;
+import io.strimzi.testsuite.oauth.authz.MetricsTest;
+import io.strimzi.testsuite.oauth.authz.OAuthOverPlainTest;
+import io.strimzi.testsuite.oauth.authz.RefreshTest;
+import io.strimzi.testsuite.oauth.authz.SingletonTest;
 import io.strimzi.testsuite.oauth.common.TestContainersLogCollector;
 import io.strimzi.testsuite.oauth.common.TestContainersWatcher;
-import io.strimzi.testsuite.oauth.common.TestUtil;
-import org.apache.kafka.clients.admin.AdminClient;
-import org.apache.kafka.common.acl.AccessControlEntryFilter;
-import org.apache.kafka.common.acl.AclBinding;
-import org.apache.kafka.common.acl.AclBindingFilter;
-import org.apache.kafka.common.acl.AclOperation;
-import org.apache.kafka.common.acl.AclPermissionType;
-import org.apache.kafka.common.resource.ResourcePatternFilter;
+
 import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
@@ -24,10 +25,11 @@ import org.testcontainers.containers.wait.strategy.Wait;
 
 import java.io.File;
 import java.time.Duration;
-import java.util.Collection;
+
+import static io.strimzi.testsuite.oauth.common.TestUtil.logStart;
 
 /**
- * Tests for OAuth authentication using Keycloak + Keycloak Authorization Services based authorization when Kafka runs in KRaft mode
+ * Tests for OAuth authentication using Keycloak + Keycloak Authorization Services based authorization when KeycloakAuthorizer is configured on the Kafka broker running in KRaft mode
  * <p>
  * This test assumes there are multiple listeners configured with OAUTHBEARER or PLAIN support, but each configured differently
  * - configured with different options, or different realm.
@@ -47,7 +49,6 @@ public class KeycloakRaftAuthorizationTests {
 
                     // ensure ACLs for user 'alice' have been added
                     //   Moved into test code: waitForACLs()
-                    //   Logging has changed, and it would require very verbose logging to possibly detect this from kafka logs
 
     @Rule
     public TestRule logCollector = new TestContainersLogCollector(environment);
@@ -59,86 +60,60 @@ public class KeycloakRaftAuthorizationTests {
     private static final String JWTPLAIN_LISTENER = "kafka:9094";
     private static final String INTROSPECTPLAIN_LISTENER = "kafka:9095";
     private static final String JWTREFRESH_LISTENER = "kafka:9096";
-    private static final String PLAIN_LISTENER = "kafka:9100";
+
 
     @Test
     public void doTest() throws Exception {
         try {
 
             String kafkaContainer = environment.getContainerByServiceName("kafka_1").get().getContainerInfo().getName().substring(1);
-/*
-            logStart("KeycloakRaftAuthorizationTest :: ConfigurationTest");
+
+            logStart("KeycloakKRaftAuthorizationTest :: ConfigurationTest");
             new ConfigurationTest(kafkaContainer).doTest();
 
-            logStart("KeycloakRaftAuthorizationTest :: MetricsTest");
+            logStart("KeycloakKRaftAuthorizationTest :: MetricsTest (part 1)");
             MetricsTest.doTest();
-*/
-            // Before running the rest of the tests, ensure ACLs have been added to Kafka cluster
-            waitForACLs();
 
-            logStart("KeycloakRaftAuthorizationTest :: MultiSaslTests");
+            // Before running the rest of the tests, ensure ACLs have been added to Kafka cluster
+            Common.waitForACLs();
+
+            logStart("KeycloakKRaftAuthorizationTest :: MultiSaslTests");
             new MultiSaslTest(kafkaContainer).doTest();
 
-            logStart("KeycloakRaftAuthorizationTest :: JwtValidationAuthzTest");
+            logStart("KeycloakKRaftAuthorizationTest :: JwtValidationAuthzTest");
             new BasicTest(kafkaContainer, JWT_LISTENER, false).doTest();
 
-            logStart("KeycloakRaftAuthorizationTest :: IntrospectionValidationAuthzTest");
+            logStart("KeycloakKRaftAuthorizationTest :: IntrospectionValidationAuthzTest");
             new BasicTest(kafkaContainer, INTROSPECT_LISTENER, false).doTest();
 
-            logStart("KeycloakRaftAuthorizationTest :: MetricsTest (part 2)");
+            logStart("KeycloakKRaftAuthorizationTest :: MetricsTest (part 2)");
             MetricsTest.doTestValidationAndAuthorization();
 
-            logStart("KeycloakRaftAuthorizationTest :: OAuthOverPlain + JwtValidationAuthzTest");
+            logStart("KeycloakKRaftAuthorizationTest :: OAuthOverPlain + JwtValidationAuthzTest");
             new OAuthOverPlainTest(kafkaContainer, JWTPLAIN_LISTENER, true).doTest();
 
-            logStart("KeycloakRaftAuthorizationTest :: OAuthOverPlain + IntrospectionValidationAuthzTest");
+            logStart("KeycloakKRaftAuthorizationTest :: OAuthOverPlain + IntrospectionValidationAuthzTest");
             new OAuthOverPlainTest(kafkaContainer, INTROSPECTPLAIN_LISTENER, true).doTest();
 
-            logStart("KeycloakRaftAuthorizationTest :: OAuthOverPLain + FloodTest");
+            logStart("KeycloakKRaftAuthorizationTest :: OAuthOverPLain + FloodTest");
             new FloodTest(JWTPLAIN_LISTENER, true).doTest();
 
-            logStart("KeycloakRaftAuthorizationTest :: JWT FloodTest");
+            logStart("KeycloakKRaftAuthorizationTest :: JWT FloodTest");
             new FloodTest(JWT_LISTENER, false).doTest();
 
-            logStart("KeycloakRaftAuthorizationTest :: Introspection FloodTest");
+            logStart("KeycloakKRaftAuthorizationTest :: Introspection FloodTest");
             new FloodTest(INTROSPECT_LISTENER, false).doTest();
 
             // This test has to be the last one - it changes the team-a-client, and team-b-client permissions in Keycloak
-            logStart("KeycloakRaftAuthorizationTest :: JwtValidationAuthzTest + RefreshGrants");
+            logStart("KeycloakKRaftAuthorizationTest :: JwtValidationAuthzTest + RefreshGrants");
             new RefreshTest(kafkaContainer, JWTREFRESH_LISTENER, false).doTest();
+
+            logStart("KeycloakKRaftAuthorizationTest :: SingletonTest");
+            new SingletonTest(kafkaContainer).doSingletonTest(2);
 
         } catch (Throwable e) {
             log.error("Keycloak Raft Authorization Test failed: ", e);
             throw e;
         }
-    }
-
-    private void waitForACLs() throws Exception {
-
-        // Create admin client using user `admin:admin-password` over PLAIN listener (port 9100)
-        try (AdminClient adminClient = Common.buildAdminClientForPlain(PLAIN_LISTENER, "admin")) {
-
-            TestUtil.waitForCondition(() -> {
-                try {
-                    Collection<AclBinding> result = adminClient.describeAcls(new AclBindingFilter(ResourcePatternFilter.ANY,
-                            new AccessControlEntryFilter("User:alice", null, AclOperation.IDEMPOTENT_WRITE, AclPermissionType.ALLOW))).values().get();
-                    for (AclBinding acl : result) {
-                        if (AclOperation.IDEMPOTENT_WRITE.equals(acl.entry().operation())) {
-                            return true;
-                        }
-                    }
-                    return false;
-
-                } catch (Exception e) {
-                    throw new RuntimeException("ACLs for User:alice could not be retrieved: ", e);
-                }
-            }, 500, 210);
-        }
-    }
-
-    private void logStart(String msg) {
-        System.out.println();
-        System.out.println("========    "  + msg);
-        System.out.println();
     }
 }

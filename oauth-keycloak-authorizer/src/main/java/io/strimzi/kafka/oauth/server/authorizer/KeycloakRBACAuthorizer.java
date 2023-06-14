@@ -42,6 +42,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -152,12 +153,13 @@ import static io.strimzi.kafka.oauth.common.OAuthAuthenticator.urlencode;
  * This authorizer honors the <em>super.users</em> configuration. Super users are automatically granted any authorization request.
  * </p>
  */
-//@SuppressWarnings({"deprecation"}) , "checkstyle:ClassFanOutComplexity"
 public class KeycloakRBACAuthorizer implements Authorizer {
 
     static final Logger log = LoggerFactory.getLogger(KeycloakRBACAuthorizer.class);
     static final Logger GRANT_LOG = LoggerFactory.getLogger(KeycloakRBACAuthorizer.class.getName() + ".grant");
     static final Logger DENY_LOG = LoggerFactory.getLogger(KeycloakRBACAuthorizer.class.getName() + ".deny");
+    private final static AtomicInteger VERSION_COUNTER = new AtomicInteger(1);
+    private final int version = VERSION_COUNTER.getAndIncrement();
 
     private SSLSocketFactory socketFactory;
     private HostnameVerifier hostnameVerifier;
@@ -180,12 +182,12 @@ public class KeycloakRBACAuthorizer implements Authorizer {
     public void configure(Map<String, ?> configs) {
 
         configuration = new Configuration(configs);
-        configuration.printWarnings();
+        configuration.printLogs();
 
         instantiateObjects(configuration);
 
         if (log.isDebugEnabled()) {
-            log.debug("Configured KeycloakRBACAuthorizer (@" + System.identityHashCode(this) + "):\n    tokenEndpointUri: " + configuration.getTokenEndpointUrl()
+            log.debug("Configured " + this + "):\n    tokenEndpointUri: " + configuration.getTokenEndpointUrl()
                     + "\n    sslSocketFactory: " + socketFactory
                     + "\n    hostnameVerifier: " + hostnameVerifier
                     + "\n    clientId: " + configuration.getClientId()
@@ -243,25 +245,11 @@ public class KeycloakRBACAuthorizer implements Authorizer {
      * @param configs The configuration that may be used to decide which delegate class to instantiate
      */
     void setupDelegateAuthorizer(Map<String, ?> configs) {
-        if (delegate == null) {
+        if (delegate == null && !configuration.isKRaft()) {
             log.debug("Using AclAuthorizer (ZooKeeper based) as a delegate");
             delegate = new AclAuthorizer();
         }
     }
-
-
-    /**
-     * Allows setting the delegate by a subclass overriding {@link #setupDelegateAuthorizer(Map)} method.
-     *
-     * @param delegate An authorizer instantiated as a delegate
-     */
-    void setDelegate(Authorizer delegate) {
-        this.delegate = delegate;
-    }
-
-
-
-
 
     static SSLSocketFactory createSSLFactory(Configuration config) {
         return SSLUtil.createSSLFactory(config.getTruststore(), config.getTruststoreData(), config.getTruststorePassword(), config.getTruststoreType(), config.getPrng());
@@ -292,6 +280,21 @@ public class KeycloakRBACAuthorizer implements Authorizer {
      * @return List of authorization results for each action in the same order as the provided actions
      */
     public List<AuthorizationResult> authorize(AuthorizableRequestContext requestContext, List<Action> actions) {
+        return authorize(delegate, requestContext, actions);
+    }
+
+    /**
+     * Authorizer method that can be called by another authorizer to delegate the authorization call to a specific delegate instance.
+     * It allows multiple authorizer instances to delegate to the same KeycloakRBACAuthorizer instance.
+     *
+     * @see KeycloakRBACAuthorizer#authorize(AuthorizableRequestContext, List)
+     *
+     * @param delegate Delegate authorizer to use as fallback
+     * @param requestContext Request context including request type, security protocol and listener name
+     * @param actions Actions being authorized including resource and operation for each action
+     * @return List of authorization results for each action in the same order as the provided actions
+     */
+    List<AuthorizationResult> authorize(Authorizer delegate, AuthorizableRequestContext requestContext, List<Action> actions) {
 
         JsonNode grants = null;
         long startTime = System.currentTimeMillis();
@@ -320,7 +323,7 @@ public class KeycloakRBACAuthorizer implements Authorizer {
                 // If user wasn't authenticated over OAuth, and simple ACL delegation is enabled
                 // we delegate to simple ACL
 
-                result = delegateIfRequested(requestContext, actions, null);
+                result = delegateIfRequested(delegate, requestContext, actions, null);
 
                 addAuthzMetricSuccessTime(startTime);
                 return result;
@@ -365,9 +368,9 @@ public class KeycloakRBACAuthorizer implements Authorizer {
             }
 
             if (grants != null) {
-                result = allowOrDenyBasedOnGrants(requestContext, actions, grants);
+                result = allowOrDenyBasedOnGrants(delegate, requestContext, actions, grants);
             } else {
-                result = delegateIfRequested(requestContext, actions, null);
+                result = delegateIfRequested(delegate, requestContext, actions, null);
             }
             addAuthzMetricSuccessTime(startTime);
             return result;
@@ -392,7 +395,7 @@ public class KeycloakRBACAuthorizer implements Authorizer {
     }
 
 
-    private List<AuthorizationResult> allowOrDenyBasedOnGrants(AuthorizableRequestContext requestContext, List<Action> actions, JsonNode grants) {
+    private List<AuthorizationResult> allowOrDenyBasedOnGrants(Authorizer delegate, AuthorizableRequestContext requestContext, List<Action> actions, JsonNode grants) {
         List<AuthorizationResult> results = new ArrayList<>(actions.size());
 
         //
@@ -421,7 +424,7 @@ public class KeycloakRBACAuthorizer implements Authorizer {
                     }
                 }
             }
-            results.addAll(delegateIfRequested(requestContext, Collections.singletonList(action), grants));
+            results.addAll(delegateIfRequested(delegate, requestContext, Collections.singletonList(action), grants));
         }
         return results;
     }
@@ -449,7 +452,7 @@ public class KeycloakRBACAuthorizer implements Authorizer {
         return enumScopes;
     }
 
-    private List<AuthorizationResult> delegateIfRequested(AuthorizableRequestContext context, List<Action> actions, JsonNode authz) {
+    private List<AuthorizationResult> delegateIfRequested(Authorizer delegate, AuthorizableRequestContext context, List<Action> actions, JsonNode authz) {
         String nonAuthMessageFragment = context.principal() instanceof OAuthKafkaPrincipal ? "" : " non-oauth";
         if (delegate != null) {
             List<AuthorizationResult> results = delegate.authorize(context, actions);
@@ -613,5 +616,10 @@ public class KeycloakRBACAuthorizer implements Authorizer {
 
     Configuration getConfiguration() {
         return configuration;
+    }
+
+    @Override
+    public String toString() {
+        return KeycloakRBACAuthorizer.class.getSimpleName() + "@" + version;
     }
 }

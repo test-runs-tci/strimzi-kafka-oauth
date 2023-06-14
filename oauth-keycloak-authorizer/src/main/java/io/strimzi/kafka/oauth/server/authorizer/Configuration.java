@@ -39,7 +39,7 @@ public class Configuration {
 
     private final Map<String, ?> configMap;
     private final AuthzConfig authzConfig;
-    private final List<String> warnings = new LinkedList<>();
+    private final List<Log> logs = new LinkedList<>();
 
 
     private final boolean reuseGrants;
@@ -83,7 +83,7 @@ public class Configuration {
         }
 
         if (DEPRECATED_PRINCIPAL_BUILDER_CLASS.equals(pbclass)) {
-            warnings.add("The '" + DEPRECATED_PRINCIPAL_BUILDER_CLASS + "' class has been deprecated, and may be removed in the future. Please use '" + PRINCIPAL_BUILDER_CLASS + "' as 'principal.builder.class' instead.");
+            logs.add(new Log(Log.Level.WARNING, "The '" + DEPRECATED_PRINCIPAL_BUILDER_CLASS + "' class has been deprecated, and may be removed in the future. Please use '" + PRINCIPAL_BUILDER_CLASS + "' as 'principal.builder.class' instead."));
         }
 
         configureTokenEndpoint(authzConfig);
@@ -124,7 +124,7 @@ public class Configuration {
 
         configureHttpRetries(authzConfig);
 
-        configureMetrics(configs, authzConfig);
+        configureMetrics(authzConfig);
     }
 
     /**
@@ -133,16 +133,20 @@ public class Configuration {
      * <p>
      * This method decouples configuration creation from logging warnings.
      */
-    public void printWarnings() {
-        for (String line: warnings) {
-            log.warn(line);
+    public void printLogs() {
+        for (Log line: logs) {
+            if (line.level == Log.Level.WARNING) {
+                log.warn(line.message);
+            } else {
+                log.debug(line.message);
+            }
         }
     }
 
     private int configureGrantsMaxIdleTimeSeconds(AuthzConfig config) {
         int grantsMaxIdleTimeSeconds = config.getValueAsInt(AuthzConfig.STRIMZI_AUTHORIZATION_GRANTS_MAX_IDLE_TIME_SECONDS, 300);
         if (grantsMaxIdleTimeSeconds <= 0) {
-            warnings.add("'strimzi.authorization.grants.max.idle.time.seconds' set to invalid value: " + grantsMaxIdleTimeSeconds + " (should be a positive number), using the default value: 300 seconds");
+            logs.add(new Log(Log.Level.WARNING, "'strimzi.authorization.grants.max.idle.time.seconds' set to invalid value: " + grantsMaxIdleTimeSeconds + " (should be a positive number), using the default value: 300 seconds"));
             grantsMaxIdleTimeSeconds = 300;
         }
         return grantsMaxIdleTimeSeconds;
@@ -151,7 +155,7 @@ public class Configuration {
     private int configureGcPeriodSeconds(AuthzConfig config) {
         int gcPeriodSeconds = config.getValueAsInt(AuthzConfig.STRIMZI_AUTHORIZATION_GRANTS_GC_PERIOD_SECONDS, 300);
         if (gcPeriodSeconds <= 0) {
-            warnings.add("'strimzi.authorization.grants.gc.period.seconds' set to invalid value: " + gcPeriodSeconds + ", using the default value: 300 seconds");
+            logs.add(new Log(Log.Level.WARNING, "'strimzi.authorization.grants.gc.period.seconds' set to invalid value: " + gcPeriodSeconds + ", using the default value: 300 seconds"));
             gcPeriodSeconds = 300;
         }
         return gcPeriodSeconds;
@@ -199,7 +203,7 @@ public class Configuration {
 
 
 
-    private void configureMetrics(Map<String, ?> configs, AuthzConfig config) {
+    private void configureMetrics(AuthzConfig config) {
 
         String enableMetricsString = ConfigUtil.getConfigWithFallbackLookup(config, AuthzConfig.STRIMZI_AUTHORIZATION_ENABLE_METRICS, Config.OAUTH_ENABLE_METRICS);
         try {
@@ -224,8 +228,13 @@ public class Configuration {
     }
 
     private void configureHttpTimeouts(AuthzConfig config) {
+        List<String> warnings = new LinkedList<>();
         connectTimeoutSeconds = ConfigUtil.getTimeoutConfigWithFallbackLookup(config, AuthzConfig.STRIMZI_AUTHORIZATION_CONNECT_TIMEOUT_SECONDS, ClientConfig.OAUTH_CONNECT_TIMEOUT_SECONDS, warnings);
         readTimeoutSeconds = ConfigUtil.getTimeoutConfigWithFallbackLookup(config, AuthzConfig.STRIMZI_AUTHORIZATION_READ_TIMEOUT_SECONDS, ClientConfig.OAUTH_READ_TIMEOUT_SECONDS, warnings);
+
+        for (String message: warnings) {
+            logs.add(new Log(Log.Level.WARNING, message));
+        }
     }
 
     /**
@@ -287,7 +296,7 @@ public class Configuration {
         AuthzConfig config = Configuration.convertToCommonConfig(configs);
         isKRaft = detectKRaft(configs);
         if (isKRaft) {
-            log.debug("Detected KRaft mode ('process.roles' configured)");
+            logs.add(new Log(Log.Level.DEBUG, "Detected KRaft mode ('process.roles' configured)"));
         }
         return config;
     }
@@ -385,6 +394,24 @@ public class Configuration {
 
     Map<String, ?> getConfigMap() {
         return configMap;
+    }
+
+    private static class Log {
+        Level level;
+        String message;
+
+        Log(Level level, String message) {
+            if (level == null) {
+                throw new IllegalArgumentException("level is null");
+            }
+            this.level = level;
+            this.message = message;
+        }
+
+        enum Level {
+            WARNING,
+            DEBUG
+        }
     }
 
     @SuppressWarnings({"checkstyle:CyclomaticComplexity"})
