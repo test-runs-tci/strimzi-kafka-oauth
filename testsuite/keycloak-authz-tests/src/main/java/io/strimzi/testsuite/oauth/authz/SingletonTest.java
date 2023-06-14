@@ -4,12 +4,14 @@
  */
 package io.strimzi.testsuite.oauth.authz;
 
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import io.strimzi.testsuite.oauth.common.ContainerLogLineReader;
 import org.junit.Assert;
 
 import java.util.List;
 import java.util.stream.Collectors;
 
+@SuppressFBWarnings("THROWS_METHOD_THROWS_CLAUSE_BASIC_EXCEPTION")
 public class SingletonTest {
 
     private final String kafkaContainer;

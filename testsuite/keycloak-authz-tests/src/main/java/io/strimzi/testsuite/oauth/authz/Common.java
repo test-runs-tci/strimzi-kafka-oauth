@@ -5,6 +5,7 @@
 package io.strimzi.testsuite.oauth.authz;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import io.strimzi.kafka.oauth.client.ClientConfig;
 import io.strimzi.kafka.oauth.common.HttpUtil;
 import io.strimzi.testsuite.oauth.common.TestUtil;
@@ -43,8 +44,8 @@ import java.util.concurrent.ExecutionException;
 import static io.strimzi.kafka.oauth.common.OAuthAuthenticator.loginWithClientSecret;
 import static io.strimzi.kafka.oauth.common.OAuthAuthenticator.urlencode;
 
+@SuppressFBWarnings({"THROWS_METHOD_THROWS_CLAUSE_BASIC_EXCEPTION", "THROWS_METHOD_THROWS_RUNTIMEEXCEPTION"})
 public class Common {
-
 
     static final String HOST = "keycloak";
     static final String REALM = "kafka-authz";
@@ -65,7 +66,7 @@ public class Common {
 
     boolean usePlain;
 
-    HashMap<String, String> tokens;
+    HashMap<String, String> tokens = new HashMap<>();
 
     Producer<String, String> teamAProducer;
     Consumer<String, String> teamAConsumer;
@@ -78,9 +79,7 @@ public class Common {
         this.usePlain = oauthOverPlain;
     }
 
-    static HashMap<String, String> authenticateAllActors() throws IOException {
-
-        HashMap<String, String> tokens = new HashMap<>();
+    void authenticateAllActors() throws IOException {
         tokens.put(TEAM_A_CLIENT, loginWithClientSecret(URI.create(TOKEN_ENDPOINT_URI), null, null,
                 TEAM_A_CLIENT, TEAM_A_CLIENT + "-secret", true, null, null).token());
         tokens.put(TEAM_B_CLIENT, loginWithClientSecret(URI.create(TOKEN_ENDPOINT_URI), null, null,
@@ -89,7 +88,6 @@ public class Common {
                 BOB, BOB + "-password", "kafka-cli"));
         tokens.put(ZERO, loginWithUsernamePassword(URI.create(TOKEN_ENDPOINT_URI),
                 ZERO, ZERO + "-password", "kafka-cli"));
-        return tokens;
     }
 
     static void consume(Consumer<String, String> consumer, String topic) {
@@ -123,11 +121,11 @@ public class Common {
         }
     }
 
-    static void produce(Producer<String, String> producer, String topic) throws Exception {
+    static void produce(Producer<String, String> producer, String topic) throws InterruptedException, ExecutionException {
         producer.send(new ProducerRecord<>(topic, "The Message")).get();
     }
 
-    static void produceFail(Producer<String, String> producer, String topic) throws Exception {
+    static void produceFail(Producer<String, String> producer, String topic) throws InterruptedException, ExecutionException {
         try {
             produce(producer, topic);
             Assert.fail("Should not be able to send message");
@@ -157,6 +155,7 @@ public class Common {
         return token.asText();
     }
 
+
     public static void waitForACLs() throws Exception {
 
         // Create admin client using user `admin:admin-password` over PLAIN listener (port 9100)
@@ -173,7 +172,7 @@ public class Common {
                     }
                     return false;
 
-                } catch (Exception e) {
+                } catch (Throwable e) {
                     throw new RuntimeException("ACLs for User:alice could not be retrieved: ", e);
                 }
             }, 500, 210);

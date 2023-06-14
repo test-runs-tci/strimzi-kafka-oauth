@@ -4,6 +4,7 @@
  */
 package io.strimzi.testsuite.oauth.authz;
 
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import io.strimzi.testsuite.oauth.common.TestMetrics;
 import org.junit.Assert;
 
@@ -12,6 +13,7 @@ import java.net.URI;
 
 import static io.strimzi.testsuite.oauth.common.TestMetrics.getPrometheusMetrics;
 
+@SuppressFBWarnings("THROWS_METHOD_THROWS_CLAUSE_BASIC_EXCEPTION")
 public class MetricsTest {
 
     private static final String AUTH_HOST_PORT = "keycloak:8080";

@@ -4,6 +4,7 @@
  */
 package io.strimzi.testsuite.oauth.authz;
 
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import io.strimzi.testsuite.oauth.common.TestUtil;
 import org.apache.kafka.clients.admin.AdminClient;
 import org.apache.kafka.clients.admin.NewTopic;
@@ -19,6 +20,7 @@ import java.util.Properties;
 import static java.util.Collections.singletonList;
 
 
+@SuppressFBWarnings("THROWS_METHOD_THROWS_CLAUSE_BASIC_EXCEPTION")
 public class BasicTest extends Common {
 
     private final String kafkaContainer;
@@ -30,7 +32,7 @@ public class BasicTest extends Common {
 
     public void doTest() throws Exception {
 
-        tokens = Common.authenticateAllActors();
+        authenticateAllActors();
 
         testTeamAClientPart1();
 
