@@ -67,8 +67,11 @@ public class KeycloakAuthorizationTests {
             Common.waitForACLs();
 
             // This test assumes that it is the first producing and consuming test
-            logStart("KeycloakAuthorizationTest :: MultiSaslTests");
+            logStart("KeycloakAuthorizationTest :: MultiSaslTest");
             new MultiSaslTest(kafkaContainer).doTest();
+
+            logStart("KeycloakAuthorizationTest :: ScramTest");
+            new ScramTest().testScramAuthenticatedSessions();
 
             logStart("KeycloakAuthorizationTest :: JwtValidationAuthzTest");
             new BasicTest(kafkaContainer, JWT_LISTENER, false).doTest();

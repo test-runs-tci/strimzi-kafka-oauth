@@ -9,6 +9,7 @@ import io.strimzi.testsuite.oauth.authz.Common;
 import io.strimzi.testsuite.oauth.authz.ConfigurationTest;
 import io.strimzi.testsuite.oauth.authz.FloodTest;
 import io.strimzi.testsuite.oauth.authz.MetricsTest;
+import io.strimzi.testsuite.oauth.authz.MultiSaslTest;
 import io.strimzi.testsuite.oauth.authz.OAuthOverPlainTest;
 import io.strimzi.testsuite.oauth.authz.RefreshTest;
 import io.strimzi.testsuite.oauth.authz.SingletonTest;

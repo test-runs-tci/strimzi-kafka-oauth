@@ -29,6 +29,8 @@ import org.apache.kafka.common.resource.ResourcePatternFilter;
 import org.apache.kafka.common.serialization.StringDeserializer;
 import org.apache.kafka.common.serialization.StringSerializer;
 import org.junit.Assert;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.net.URI;
@@ -46,6 +48,8 @@ import static io.strimzi.kafka.oauth.common.OAuthAuthenticator.urlencode;
 
 @SuppressFBWarnings({"THROWS_METHOD_THROWS_CLAUSE_BASIC_EXCEPTION", "THROWS_METHOD_THROWS_RUNTIMEEXCEPTION"})
 public class Common {
+
+    private static final Logger log = LoggerFactory.getLogger(Common.class);
 
     static final String HOST = "keycloak";
     static final String REALM = "kafka-authz";
@@ -77,6 +81,14 @@ public class Common {
     Common(String kafkaBootstrap, boolean oauthOverPlain) {
         this.kafkaBootstrap = kafkaBootstrap;
         this.usePlain = oauthOverPlain;
+    }
+
+    static void produceToTopic(String topic, Properties config) throws Exception {
+
+        try (Producer<String, String> producer = new KafkaProducer<>(config)) {
+            producer.send(new ProducerRecord<>(topic, "The Message")).get();
+            log.debug("Produced The Message");
+        }
     }
 
     void authenticateAllActors() throws IOException {
