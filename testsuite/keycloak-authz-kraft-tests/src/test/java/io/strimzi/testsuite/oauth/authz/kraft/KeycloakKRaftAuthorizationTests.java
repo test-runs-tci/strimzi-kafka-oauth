@@ -5,7 +5,6 @@
 package io.strimzi.testsuite.oauth.authz.kraft;
 
 import io.strimzi.testsuite.oauth.authz.BasicTest;
-import io.strimzi.testsuite.oauth.authz.Common;
 import io.strimzi.testsuite.oauth.authz.ConfigurationTest;
 import io.strimzi.testsuite.oauth.authz.FloodTest;
 import io.strimzi.testsuite.oauth.authz.MetricsTest;
@@ -27,6 +26,7 @@ import org.testcontainers.containers.wait.strategy.Wait;
 import java.io.File;
 import java.time.Duration;
 
+import static io.strimzi.testsuite.oauth.authz.Common.waitForACLs;
 import static io.strimzi.testsuite.oauth.common.TestUtil.logStart;
 
 /**
@@ -37,7 +37,7 @@ import static io.strimzi.testsuite.oauth.common.TestUtil.logStart;
  * <p>
  * There is KeycloakAuthorizer configured on the Kafka broker.
  */
-public class KeycloakRaftAuthorizationTests {
+public class KeycloakKRaftAuthorizationTests {
 
     @ClassRule
     public static TestContainersWatcher environment =
@@ -54,7 +54,7 @@ public class KeycloakRaftAuthorizationTests {
     @Rule
     public TestRule logCollector = new TestContainersLogCollector(environment);
 
-    private static final Logger log = LoggerFactory.getLogger(KeycloakRaftAuthorizationTests.class);
+    private static final Logger log = LoggerFactory.getLogger(KeycloakKRaftAuthorizationTests.class);
 
     private static final String JWT_LISTENER = "kafka:9092";
     private static final String INTROSPECT_LISTENER = "kafka:9093";
@@ -76,7 +76,7 @@ public class KeycloakRaftAuthorizationTests {
             MetricsTest.doTest();
 
             // Before running the rest of the tests, ensure ACLs have been added to Kafka cluster
-            Common.waitForACLs();
+            waitForACLs();
 
             logStart("KeycloakKRaftAuthorizationTest :: MultiSaslTests");
             new MultiSaslTest(kafkaContainer).doTest();

@@ -4,8 +4,11 @@
  */
 package io.strimzi.testsuite.oauth.authz;
 
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import io.strimzi.kafka.oauth.client.ClientConfig;
 import io.strimzi.testsuite.oauth.common.TestMetrics;
+import org.apache.kafka.common.errors.AuthenticationException;
+import org.apache.kafka.common.errors.AuthorizationException;
 import org.junit.Assert;
 
 import java.io.IOException;
@@ -15,6 +18,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
+import java.util.concurrent.ExecutionException;
 
 import static io.strimzi.testsuite.oauth.authz.Common.buildProducerConfigOAuthBearer;
 import static io.strimzi.testsuite.oauth.authz.Common.buildProducerConfigPlain;
@@ -22,6 +26,7 @@ import static io.strimzi.testsuite.oauth.authz.Common.produceToTopic;
 import static io.strimzi.testsuite.oauth.common.TestMetrics.getPrometheusMetrics;
 import static io.strimzi.testsuite.oauth.common.TestUtil.getContainerLogsForString;
 
+@SuppressFBWarnings("THROWS_METHOD_THROWS_CLAUSE_BASIC_EXCEPTION")
 public class MultiSaslTest {
 
     private static final String PLAIN_LISTENER = "kafka:9100";
@@ -54,7 +59,8 @@ public class MultiSaslTest {
         try {
             produceToTopic("KeycloakAuthorizationTest-multiSaslTest-plain-denied", producerProps);
             Assert.fail("Should have failed");
-        } catch (Exception ignored) {
+        } catch (ExecutionException e) {
+            Assert.assertTrue("Instance of authorization exception", e.getCause() instanceof AuthorizationException);
         }
 
         // alice:alice-password
@@ -67,7 +73,8 @@ public class MultiSaslTest {
         try {
             produceToTopic("KeycloakAuthorizationTest-multiSaslTest-plain", producerProps);
             Assert.fail("Should have failed");
-        } catch (Exception ignored) {
+        } catch (ExecutionException e) {
+            Assert.assertTrue("Instance of authentication exception", e.getCause() instanceof AuthenticationException);
         }
 
         int fetchGrantsCount = currentFetchGrantsLogCount();

@@ -5,7 +5,6 @@
 package io.strimzi.testsuite.oauth.authz.kraft;
 
 import io.strimzi.testsuite.oauth.authz.BasicTest;
-import io.strimzi.testsuite.oauth.authz.Common;
 import io.strimzi.testsuite.oauth.authz.ConfigurationTest;
 import io.strimzi.testsuite.oauth.authz.FloodTest;
 import io.strimzi.testsuite.oauth.authz.MetricsTest;
@@ -26,6 +25,7 @@ import org.testcontainers.containers.wait.strategy.Wait;
 import java.io.File;
 import java.time.Duration;
 
+import static io.strimzi.testsuite.oauth.authz.Common.waitForACLs;
 import static io.strimzi.testsuite.oauth.common.TestUtil.logStart;
 
 /**
@@ -74,7 +74,7 @@ public class KeycloakZKAuthorizationTests {
             MetricsTest.doTest();
 
             // Before running the rest of the tests, ensure ACLs have been added to Kafka cluster
-            Common.waitForACLs();
+            waitForACLs();
 
             logStart("KeycloakZKAuthorizationTest :: MultiSaslTests");
             new MultiSaslTest(kafkaContainer).doTest();

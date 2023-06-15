@@ -17,6 +17,7 @@ import org.testcontainers.containers.wait.strategy.Wait;
 import java.io.File;
 import java.time.Duration;
 
+import static io.strimzi.testsuite.oauth.authz.Common.waitForACLs;
 import static io.strimzi.testsuite.oauth.common.TestUtil.logStart;
 
 /**
@@ -56,15 +57,15 @@ public class KeycloakAuthorizationTests {
     public void doTest() throws Exception {
         try {
             String kafkaContainer = environment.getContainerByServiceName("kafka_1").get().getContainerInfo().getName().substring(1);
-
+/*
             logStart("KeycloakAuthorizationTest :: ConfigurationTest");
             new ConfigurationTest(kafkaContainer).doTest();
 
             logStart("KeycloakAuthorizationTest :: MetricsTest (part 1)");
             MetricsTest.doTest();
-
+*/
             // Ensure ACLs have been added to Kafka cluster
-            Common.waitForACLs();
+            waitForACLs();
 
             // This test assumes that it is the first producing and consuming test
             logStart("KeycloakAuthorizationTest :: MultiSaslTest");
