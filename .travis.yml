@@ -30,6 +30,19 @@ jobs:
       apt:
         packages:
         - maven
+  - os: linux
+    arch: arm64
+    jdk: openjdk11
+    addons:
+      hosts:
+        - kafka
+        - keycloak
+        - hydra
+        - hydra-jwt
+        - mockoauth
+      apt:
+        packages:
+        - maven
 jdk:
 - openjdk11
 - openjdk17
