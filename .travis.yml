@@ -1,5 +1,5 @@
 # TEST RUN
-dist: focal
+dist: bionib
 sudo: required
 language: java
 jobs:
